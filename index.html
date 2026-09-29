@@ -37,6 +37,8 @@ h1{font-size:15.5px;margin:0;font-weight:800;letter-spacing:.2px;
 .dim{color:var(--dim);font-size:12.5px}
 main{padding:16px;max-width:1250px;margin:0 auto}
 .tabs{display:flex;gap:6px;margin:0 0 14px;flex-wrap:wrap;align-items:center}
+.wfilter{display:flex;gap:4px;align-items:center;margin-left:auto;flex-wrap:wrap}
+.wfilter .tab{padding:4px 10px;font-size:12px}
 .tab{padding:6px 13px;border:1px solid var(--line);border-radius:8px;background:rgba(26,31,71,.5);
 color:var(--dim);cursor:pointer;font:inherit;font-size:13px;line-height:1.4;transition:.15s}
 .tab:hover{border-color:var(--pk-blue2);color:var(--fg);transform:translateY(-1px)}
@@ -168,16 +170,16 @@ footer{color:var(--dim);font-size:11px;padding:16px;border-top:1px solid var(--l
   <h1 id="title">Farm-loop ledger</h1>
   <span class="dim" id="hdr">–</span>
   <span class="dim" id="upd">–</span>
-</header>
-<main>
-  <div class="tabs" id="nav"></div>
-  <div class="tabs" id="wins">
+  <div class="wfilter" id="wins" role="group" aria-label="time window">
     <span class="dim">window</span>
-    <button class="tab" data-w="1h">last 1h</button>
+    <button class="tab" data-w="1h">1h</button>
     <button class="tab" data-w="6h">6h</button>
     <button class="tab on" data-w="24h">24h</button>
     <button class="tab" data-w="all">all</button>
   </div>
+</header>
+<main>
+  <div class="tabs" id="nav"></div>
   <div id="view"></div>
 </main>
 <div id="scrim"></div>
@@ -539,6 +541,10 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape")closeDetail();});
 function render(){
   if(!DATA) return;
   document.querySelectorAll("#wins .tab").forEach(t=>t.classList.toggle("on",t.dataset.w===WIN));
+  // The window filter only applies to Wallets / wallet detail / Attempts.
+  // On the Cards tab it would be a control that does nothing -- hide it.
+  const wf=$("#wins");
+  if(wf) wf.style.display=(PAGE==="cards"&&PICK==null)?"none":"";
   nav();
   if(PICK!=null) walletView();
   else if(PAGE==="cards") cardsPage();
