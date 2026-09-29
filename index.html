@@ -22,16 +22,14 @@ color:var(--dim);cursor:pointer;font:inherit;font-size:13px;line-height:1.4}
 .tab:hover{border-color:#38414f}
 .tab.on{background:var(--card2);color:var(--fg);border-color:#3d4756}
 .tab b{color:var(--fg);font-weight:600}
-
-/* ---- wallet cards ---- */
-.wgrid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(235px,1fr))}
+.wgrid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
 .wcard{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:13px;
 cursor:pointer;transition:border-color .15s,transform .1s;display:flex;flex-direction:column;gap:9px}
 .wcard:hover{border-color:#3d4756;transform:translateY(-1px)}
 .wcard .top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .wname{font-family:ui-monospace,Menlo,monospace;font-weight:700;font-size:16px}
 .waddr{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--dim)}
-.wbig{font-size:26px;font-weight:700;line-height:1;font-family:ui-monospace,Menlo,monospace}
+.wbig{font-size:25px;font-weight:700;line-height:1;font-family:ui-monospace,Menlo,monospace}
 .wbig span{font-size:11px;font-weight:500;color:var(--dim);font-family:inherit;margin-left:4px}
 .split{display:flex;height:6px;border-radius:3px;overflow:hidden;background:#252b37}
 .split i{display:block;height:100%}
@@ -46,16 +44,17 @@ color:var(--dim);white-space:nowrap}
 .pill.bad{color:var(--bad);border-color:#5a2a2a}
 .wfoot{display:flex;justify-content:space-between;align-items:center;gap:8px;
 font-size:11px;color:var(--dim);margin-top:1px}
-
-/* ---- kpis ---- */
+.minicards{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px}
+.minicard{display:flex;align-items:center;gap:6px;background:var(--card2);border:1px solid var(--line);
+border-radius:7px;padding:3px 7px;font-size:10.5px;max-width:100%}
+.minicard img{width:20px;height:20px;object-fit:cover;border-radius:4px;background:#252b37}
+.minicard span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px}
 .kpis{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));margin-bottom:14px}
 .kpi{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:9px 12px}
 .kpi .v{font-size:19px;font-weight:700;line-height:1.2;font-family:ui-monospace,Menlo,monospace}
 .kpi .l{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
-
-/* ---- tables ---- */
 .card{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
-.tscroll{max-height:58vh;overflow:auto}
+.tscroll{max-height:62vh;overflow:auto}
 table{width:100%;border-collapse:collapse;font-size:12.5px}
 thead th{text-align:left;color:var(--dim);font-weight:600;font-size:10.5px;text-transform:uppercase;
 letter-spacing:.5px;padding:8px;border-bottom:1px solid var(--line);cursor:pointer;white-space:nowrap;
@@ -69,6 +68,10 @@ tbody tr:hover{background:var(--card2)}
 .badge{font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid;white-space:nowrap}
 .b-server{color:var(--warn);border-color:#5a4520}
 .b-client{color:var(--vio);border-color:#4a2f63}
+.st-approved{color:var(--ok);border-color:#25503a}
+.st-pending{color:var(--warn);border-color:#5a4520}
+.st-denied{color:var(--bad);border-color:#5a2a2a}
+.st-cashed{color:var(--acc);border-color:#1e3a5f}
 .t-common{color:#9aa0a6}.t-uncommon{color:var(--ok)}
 .t-rare{color:var(--acc)}.t-grail{color:var(--warn);font-weight:700}
 .t-empty{color:var(--dim)}
@@ -85,8 +88,13 @@ padding:5px 12px;cursor:pointer;font:inherit;font-size:13px}
 .whead .nm{font-family:ui-monospace,Menlo,monospace;font-size:20px;font-weight:700}
 h2{font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.6px;
 margin:0 0 9px;font-weight:600}
-
-/* ---- drawer ---- */
+.cgrid{display:grid;gap:11px;grid-template-columns:repeat(auto-fill,minmax(215px,1fr))}
+.ccard{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden;
+cursor:pointer;display:flex;flex-direction:column}
+.ccard:hover{border-color:#3d4756}
+.ccard img{width:100%;aspect-ratio:1;object-fit:cover;background:#252b37;display:block}
+.cbody{padding:9px 10px;display:flex;flex-direction:column;gap:6px}
+.cname{font-size:12px;line-height:1.35;height:2.7em;overflow:hidden}
 #drawer{position:fixed;inset:0 0 0 auto;width:min(560px,100%);background:#0f131a;
 border-left:1px solid var(--line);transform:translateX(102%);transition:transform .2s;
 overflow-y:auto;z-index:40;padding:16px 18px 60px}
@@ -109,7 +117,8 @@ pre{background:#0a0c10;border:1px solid var(--line);border-radius:8px;padding:11
 overflow-x:auto;font-size:11.5px;margin:9px 0 0;color:#cdd3de}
 .copy{background:none;border:1px solid var(--line);color:var(--acc);border-radius:5px;
 padding:1px 7px;cursor:pointer;font-size:11px;margin-left:6px}
-.empty{color:var(--dim);padding:18px;text-align:center}
+.cimg{width:100%;border-radius:9px;border:1px solid var(--line);margin-bottom:12px;display:block}
+.empty{color:var(--dim);padding:22px;text-align:center}
 footer{color:var(--dim);font-size:11px;padding:16px;border-top:1px solid var(--line);margin-top:22px}
 .err{color:var(--bad)}
 @media(max-width:620px){dl{grid-template-columns:1fr}dt{padding-top:8px}
@@ -123,6 +132,7 @@ footer{color:var(--dim);font-size:11px;padding:16px;border-top:1px solid var(--l
   <span class="dim" id="upd">–</span>
 </header>
 <main>
+  <div class="tabs" id="nav"></div>
   <div class="tabs" id="wins">
     <span class="dim">window</span>
     <button class="tab" data-w="1h">last 1h</button>
@@ -134,14 +144,15 @@ footer{color:var(--dim);font-size:11px;padding:16px;border-top:1px solid var(--l
 </main>
 <div id="scrim"></div>
 <aside id="drawer" aria-hidden="true"></aside>
-<footer>All times UTC · auto-refresh 8s · click a wallet for its detail, a row for the raw record ·
+<footer>All times UTC · auto-refresh 8s · click a wallet or card for detail ·
 the ledger stores the server's status/code, not its response body or message text</footer>
 <script>
 const RAW="https://raw.githubusercontent.com/blackops-arch/gocollect-dashboard/data/ledger.json";
 const $=s=>document.querySelector(s);
 const WIN_MS={"1h":3600e3,"6h":6*3600e3,"24h":24*3600e3,"all":Infinity};
-let DATA=null, WIN="24h", PICK=null, SUB="denials", OPEN=null,
-    SORT={denials:["at",-1],opens:["at",-1],all:["at",-1]};
+const WINLABEL={"1h":"last hour","6h":"last 6h","24h":"last 24h","all":"all time"};
+let DATA=null, WIN="24h", PAGE="wallets", PICK=null, SUB="denials", CSORT=["valueUsd",-1],
+    OPEN=null, SORT={denials:["at",-1],opens:["at",-1],all:["at",-1]};
 
 /* ---------- derived fields (per spec) ---------- */
 const outcome=a=>a.status===200?"success":"denied";
@@ -149,13 +160,14 @@ const reason=a=>a.code?a.code:(a.status===0?"transport":"unknown");
 const side=a=>a.status===0?"client":(a.status>=400?"server":"—");
 const endpoint=a=>"POST /v1/crates/"+(a.crate_id||"")+"/open";
 const message=a=>"HTTP "+a.status+" · POST /v1/crates/"+(a.crate_id||"")+"/open";
-const wlabel=w=>"W"+w;
+const glabel=w=>"G"+w;
 const addr=w=>(DATA&&DATA.wallets&&DATA.wallets[String(w)]||{}).addr||"—";
 const roll=u=>u==null?"—":Number(u).toFixed(5);
 const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const hhmmss=at=>(at||"").slice(11,19);
 const dayof=at=>(at||"").slice(0,10);
 const scls=s=>s===200?"s200":s===0?"s0":s>=500?"s5xx":"s4xx";
+const money=v=>v==null?"—":"$"+Number(v).toLocaleString(undefined,{maximumFractionDigits:2});
 function ago(at){
   if(!at) return "—";
   const s=Math.max(0,(Date.now()-Date.parse(at))/1000);
@@ -181,45 +193,65 @@ function stats(list){
   return {n:list.length, denied:denied.length, acc:acc.length, draws:draws.length,
           tooFast:denied.filter(a=>reason(a)==="too_fast").length};
 }
+function cardsOf(w){ return (DATA.cards||[]).filter(c=>c.wallet===w); }
 function sameReasonToday(a){
   const d=dayof(a.at), r=reason(a);
   return DATA.attempts.filter(b=>dayof(b.at)===d && outcome(b)==="denied" && reason(b)===r).length;
 }
 function lastN(w,n){ return DATA.attempts.filter(a=>a.wallet===w).slice(-n).reverse(); }
+const STCLASS={approved:"st-approved",pending:"st-pending",denied:"st-denied","cashed-out":"st-cashed"};
 
-/* ---------- view 1: wallet cards ---------- */
+/* ---------- nav ---------- */
+function nav(){
+  const nC=(DATA.cards||[]).length, nD=(DATA.cards||[]).filter(c=>c.status==="denied").length;
+  const items=[["wallets","Wallets",walletIds().length],["cards","Cards",nC],["attempts","Attempts",winRows().length]];
+  $("#nav").innerHTML=items.map(([k,l,n])=>
+    '<button class="tab'+(PAGE===k&&PICK==null?" on":"")+'" data-p="'+k+'">'+l
+    +' <b>'+n+'</b>'+(k==="cards"&&nD?' <span class="pill bad">'+nD+' denied</span>':'')+'</button>').join("");
+  document.querySelectorAll("#nav .tab").forEach(t=>t.onclick=()=>{
+    PAGE=t.dataset.p; PICK=null; OPEN=null; render();
+  });
+}
+
+/* ---------- view: wallet cards ---------- */
 function cardsView(){
-  const A=winRows(), ids=walletIds();
-  const t=stats(A);
-  const winLabel={"1h":"last hour","6h":"last 6h","24h":"last 24h","all":"all time"}[WIN];
+  const A=winRows(), ids=walletIds(), t=stats(A);
   $("#title").textContent="Farm-loop ledger";
-  $("#hdr").textContent=winLabel+" · "+ids.length+" wallets · "+A.length+" attempts · "+
+  $("#hdr").textContent=WINLABEL[WIN]+" · "+ids.length+" wallets · "+A.length+" attempts · "+
     (A.length?dayof(A[0].at)+" → "+dayof(A[A.length-1].at):"no attempts");
   const tfCol=t.tooFast===0?"var(--ok)":"var(--warn)";
-  const kpis=
-    '<div class="kpis">'
+  const nCards=(DATA.cards||[]).length, nVal=(DATA.cards||[]).reduce((s,c)=>s+(c.valueUsd||0),0);
+  const kpis='<div class="kpis">'
     +'<div class="kpi"><div class="v">'+t.n+'</div><div class="l">attempts</div></div>'
     +'<div class="kpi"><div class="v">'+t.acc+'</div><div class="l">accepted</div></div>'
     +'<div class="kpi"><div class="v">'+t.denied+'</div><div class="l">denied</div></div>'
-    +'<div class="kpi"><div class="v">'+t.draws+'</div><div class="l">draws</div></div>'
+    +'<div class="kpi"><div class="v">'+nCards+'</div><div class="l">cards</div></div>'
+    +'<div class="kpi"><div class="v">'+money(nVal)+'</div><div class="l">cards value</div></div>'
     +'<div class="kpi"><div class="v" style="color:'+tfCol+'">'+t.tooFast+'</div><div class="l">too_fast</div></div>'
     +'</div>';
   const cards=ids.map(w=>{
     const mine=A.filter(a=>a.wallet===w), s=stats(mine);
+    const myC=cardsOf(w);
     const okPct=s.n?100*s.acc/s.n:0, denPct=s.n?100-s.acc/s.n*100:0;
     const last=mine.length?mine[mine.length-1].at:null;
     const tf=s.tooFast===0?'<span class="pill zero">too_fast 0</span>'
                           :'<span class="pill den">too_fast '+s.tooFast+'</span>';
+    const mini=myC.length?myC.slice(0,3).map(c=>
+      '<div class="minicard">'+(c.image?'<img src="'+esc(c.image)+'" loading="lazy" alt="">':'')
+      +'<span class="t-'+esc(c.tier||"empty")+'">'+esc(c.name||c.tier||"card")+'</span></div>').join("")
+      +(myC.length>3?'<div class="minicard"><span class="dim">+'+(myC.length-3)+' more</span></div>':"")
+      :'';
     return '<div class="wcard" data-w="'+w+'">'
-      +'<div class="top"><span class="wname">'+wlabel(w)+'</span>'
+      +'<div class="top"><span class="wname">'+glabel(w)+'</span>'
       +'<span class="waddr">'+esc(addr(w))+'</span></div>'
       +'<div class="wbig">'+s.n+'<span>attempts</span></div>'
       +'<div class="split"><i class="si-ok" style="width:'+okPct+'%"></i>'
       +'<i class="si-den" style="width:'+denPct+'%"></i></div>'
       +'<div class="wpills"><span class="pill ok">accepted '+s.acc+'</span>'
       +'<span class="pill den">denied '+s.denied+'</span>'
-      +(s.draws?'<span class="pill draw">draws '+s.draws+'</span>':'')
+      +'<span class="pill'+(myC.length?' draw':'')+'">cards '+myC.length+'</span>'
       +tf+'</div>'
+      +(mini?'<div class="minicards">'+mini+'</div>':'')
       +'<div class="wfoot"><span>'+ago(last)+'</span><span class="dim">view →</span></div>'
       +'</div>';
   }).join("");
@@ -229,12 +261,63 @@ function cardsView(){
   });
 }
 
-/* ---------- view 2: one wallet ---------- */
+/* ---------- view: all cards ---------- */
+function cardsPage(){
+  let cs=(DATA.cards||[]).slice();
+  const byT={}; cs.forEach(c=>{const k=c.tier||"—"; byT[k]=(byT[k]||0)+1;});
+  const byS={}; cs.forEach(c=>{byS[c.status]=(byS[c.status]||0)+1;});
+  const [k,dir]=CSORT;
+  cs.sort((a,b)=>{
+    let x,y;
+    if(k==="wallet"){x=a.wallet;y=b.wallet;}
+    else if(k==="tier"){x=a.tier||"";y=b.tier||"";}
+    else if(k==="status"){x=a.status||"";y=b.status||"";}
+    else if(k==="valueUsd"){x=a.valueUsd==null?-1:a.valueUsd;y=b.valueUsd==null?-1:b.valueUsd;}
+    else if(k==="day"){x=a.day||"";y=b.day||"";}
+    else if(k==="name"){x=a.name||"";y=b.name||"";}
+    if(x<y)return -dir; if(x>y)return dir; return 0;
+  });
+  $("#title").textContent="Cards";
+  $("#hdr").textContent=cs.length+" card(s) · "+money(cs.reduce((s,c)=>s+(c.valueUsd||0),0))+" total";
+  const tierPills=Object.entries(byT).sort((a,b)=>b[1]-a[1]).map(([t,n])=>
+    '<div class="kpi"><div class="v t-'+esc(t)+'">'+n+'</div><div class="l">'+esc(t)+'</div></div>').join("");
+  const stPills=["approved","pending","denied","cashed-out"].map(s=>
+    '<div class="kpi"><div class="v '+(STCLASS[s]||"")+'" style="font-size:15px">'+(byS[s]||0)
+    +'</div><div class="l">'+s+'</div></div>').join("");
+  const cols=[["wallet","wallet"],["status","status"],["tier","rarity"],["name","card"],
+              ["grade","grade"],["valueUsd","value"],["day","pulled"]];
+  const thead=cols.map(([f,l])=>'<th data-f="'+f+'" class="'+(f===k?"sel":"")+'">'+l
+    +(f===k?' <span class="ar">'+(dir<0?"▼":"▲")+'</span>':'')+'</th>').join("");
+  const body=cs.length?cs.map((c,i)=>
+    '<tr data-c="'+i+'"><td>'+glabel(c.wallet)+'</td>'
+    +'<td><span class="badge '+(STCLASS[c.status]||"")+'">'+esc(c.status)+'</span></td>'
+    +'<td class="t-'+esc(c.tier||"empty")+'">'+esc(c.tier||"—")+'</td>'
+    +'<td>'+esc(c.name||"—")+'</td><td>'+esc(c.grade||"—")+'</td>'
+    +'<td>'+money(c.valueUsd)+'</td><td>'+esc(c.day||"—")+'</td></tr>').join("")
+    :'<tr><td colspan="7" class="empty">no cards yet</td></tr>';
+  $("#view").innerHTML=
+    '<div class="kpis">'+stPills+'</div>'
+    +'<h2>by rarity</h2><div class="kpis">'+tierPills+'</div>'
+    +'<div class="card"><div class="tscroll"><table><thead><tr>'+thead+'</tr></thead>'
+    +'<tbody>'+body+'</tbody></table></div></div>'
+    +'<div class="note">Status: <b>approved</b> = pulled and still in the wallet · '
+    +'<b>pending</b> = the server is holding it · <b>denied</b> = the server refused the prize · '
+    +'<b>cashed-out</b> = already redeemed. Card names, grades and values come from each '
+    +'wallet\'s public profile.</div>';
+  document.querySelectorAll("thead th").forEach(th=>th.onclick=()=>{
+    const f=th.dataset.f;
+    CSORT=[f,(CSORT[0]===f?-CSORT[1]:(f==="valueUsd"?-1:1))];
+    render();
+  });
+  document.querySelectorAll("tbody tr[data-c]").forEach(tr=>
+    tr.onclick=()=>cardDetail(cs[+tr.dataset.c]));
+}
+
+/* ---------- view: one wallet ---------- */
 function walletView(){
-  const w=PICK, A=winRows().filter(a=>a.wallet===w), s=stats(A);
-  const winLabel={"1h":"last hour","6h":"last 6h","24h":"last 24h","all":"all time"}[WIN];
-  $("#title").textContent=wlabel(w);
-  $("#hdr").textContent=winLabel+" · "+s.n+" attempts";
+  const w=PICK, A=winRows().filter(a=>a.wallet===w), s=stats(A), myC=cardsOf(w);
+  $("#title").textContent=glabel(w);
+  $("#hdr").textContent=WINLABEL[WIN]+" · "+s.n+" attempts · "+myC.length+" card(s)";
   const tfCol=s.tooFast===0?"var(--ok)":"var(--warn)";
   let sub=A.slice();
   if(SUB==="denials") sub=sub.filter(a=>outcome(a)==="denied");
@@ -255,8 +338,8 @@ function walletView(){
                opens:[["at","time"],["tier","tier"],["drawn_tier","drawn"],["u","roll"],["open_id","mint"]],
                all:[["at","time"],["status","status"],["reason","reason"],["side","side"],["tier","tier"],["u","roll"]]};
   const thead=COLSN[SUB].map(([f,l])=>
-    '<th data-f="'+f+'" class="'+(f===k?"sel":"")+'">'+l+
-    (f===k?' <span class="ar">'+(dir<0?"▼":"▲")+'</span>':'')+'</th>').join("");
+    '<th data-f="'+f+'" class="'+(f===k?"sel":"")+'">'+l
+    +(f===k?' <span class="ar">'+(dir<0?"▼":"▲")+'</span>':'')+'</th>').join("");
   const body=sub.length?sub.map(a=>{
     const i=DATA.attempts.indexOf(a), out=outcome(a);
     if(SUB==="denials") return '<tr data-i="'+i+'"><td>'+hhmmss(a.at)+'</td><td class="'+scls(a.status)+'">'
@@ -276,17 +359,26 @@ function walletView(){
     '<div class="rcard"><span class="rn">'+esc(r)+'</span><span class="n">'+n+'</span></div>').join("")
     ||'<div class="rcard"><span class="rn">no denials in this window</span><span class="n">0</span></div>';
 
+  const cgrid=myC.length?myC.map((c,i)=>
+    '<div class="ccard" data-ci="'+i+'">'+(c.image?'<img src="'+esc(c.image)+'" loading="lazy" alt="">':'')
+    +'<div class="cbody"><div class="cname">'+esc(c.name||"—")+'</div>'
+    +'<div class="wpills"><span class="badge '+(STCLASS[c.status]||"")+'">'+esc(c.status)+'</span>'
+    +'<span class="pill t-'+esc(c.tier||"empty")+'">'+esc(c.tier||"—")+'</span>'
+    +'<span class="pill draw">'+money(c.valueUsd)+'</span></div></div></div>').join("")
+    :'<div class="empty">no cards pulled yet</div>';
+
   $("#view").innerHTML=
     '<div class="whead"><button class="back" id="back">← all wallets</button>'
-    +'<span class="nm">'+wlabel(w)+'</span><span class="waddr">'+esc(addr(w))+'</span></div>'
+    +'<span class="nm">'+glabel(w)+'</span><span class="waddr">'+esc(addr(w))+'</span></div>'
     +'<div class="kpis">'
     +'<div class="kpi"><div class="v">'+s.n+'</div><div class="l">attempts</div></div>'
     +'<div class="kpi"><div class="v">'+s.acc+'</div><div class="l">accepted</div></div>'
     +'<div class="kpi"><div class="v">'+s.denied+'</div><div class="l">denied</div></div>'
-    +'<div class="kpi"><div class="v">'+s.draws+'</div><div class="l">draws</div></div>'
+    +'<div class="kpi"><div class="v">'+myC.length+'</div><div class="l">cards</div></div>'
     +'<div class="kpi"><div class="v" style="color:'+tfCol+'">'+s.tooFast+'</div><div class="l">too_fast</div></div>'
     +'</div>'
-    +'<h2>denials by reason</h2><div class="reasons">'+rcards+'</div>'
+    +'<h2>cards pulled</h2><div class="cgrid">'+cgrid+'</div>'
+    +'<h2 style="margin-top:18px">denials by reason</h2><div class="reasons">'+rcards+'</div>'
     +'<div class="tabs">'
     +'<button class="tab'+(SUB==="denials"?" on":"")+'" data-s="denials">Denials</button>'
     +'<button class="tab'+(SUB==="opens"?" on":"")+'" data-s="opens">Opens</button>'
@@ -304,6 +396,59 @@ function walletView(){
   });
   document.querySelectorAll("tbody tr[data-i]").forEach(tr=>
     tr.onclick=()=>detail(DATA.attempts[+tr.dataset.i]));
+  document.querySelectorAll(".ccard[data-ci]").forEach(c=>
+    c.onclick=e=>{e.stopPropagation();cardDetail(myC[+c.dataset.ci]);});
+}
+
+/* ---------- view: flat attempts ---------- */
+function attemptsPage(){
+  const A=winRows().slice().sort((a,b)=>(b.at||"")<(a.at||"")?-1:1);
+  $("#title").textContent="All attempts";
+  $("#hdr").textContent=WINLABEL[WIN]+" · "+A.length+" attempts";
+  const body=A.slice(0,600).map(a=>{
+    const i=DATA.attempts.indexOf(a), out=outcome(a);
+    return '<tr data-i="'+i+'"><td>'+hhmmss(a.at)+'</td><td>'+glabel(a.wallet)+'</td>'
+      +'<td class="'+scls(a.status)+'">'+a.status+'</td><td>'
+      +(out==="denied"?'<span class="badge b-'+side(a)+'">'+esc(reason(a))+'</span>':'—')
+      +'</td><td>'+(out==="denied"?side(a):"—")+'</td><td class="t-'+esc(a.tier||"empty")+'">'
+      +esc(a.tier||"—")+'</td></tr>';
+  }).join("")||'<tr><td colspan="6" class="empty">nothing in this window</td></tr>';
+  $("#view").innerHTML='<div class="card"><div class="tscroll"><table><thead><tr>'
+    +'<th>time</th><th>wallet</th><th>status</th><th>reason</th><th>side</th><th>tier</th>'
+    +'</tr></thead><tbody>'+body+'</tbody></table></div></div>';
+  document.querySelectorAll("tbody tr[data-i]").forEach(tr=>
+    tr.onclick=()=>detail(DATA.attempts[+tr.dataset.i]));
+}
+
+/* ---------- card detail ---------- */
+function cardDetail(c){
+  if(!c) return;
+  $("#drawer").innerHTML=
+    '<div class="dhead"><h3>'+esc(c.name||"Card")+'</h3>'
+    +'<button class="x" id="xclose">close</button></div>'
+    +(c.image?'<img class="cimg" src="'+esc(c.image)+'" alt="">':'')
+    +'<span class="badge '+(STCLASS[c.status]||"")+'">'+esc(c.status)+'</span> '
+    +'<span class="pill t-'+esc(c.tier||"empty")+'">'+esc(c.tier||"—")+'</span>'
+    +'<dl>'
+    +'<dt>Wallet</dt><dd>'+glabel(c.wallet)+' · '+esc(addr(c.wallet))+'</dd>'
+    +'<dt>Rarity</dt><dd>'+esc(c.tier||"—")+'</dd>'
+    +'<dt>Status</dt><dd>'+esc(c.status)+'</dd>'
+    +'<dt>Grade</dt><dd>'+esc(c.grade||"—")+'</dd>'
+    +'<dt>Value</dt><dd>'+money(c.valueUsd)+'</dd>'
+    +'<dt>Pulled</dt><dd>'+esc(c.day||"—")+'</dd>'
+    +'<dt>Times</dt><dd>'+(c.times==null?"—":c.times)+'</dd>'
+    +'<dt>Sold for</dt><dd>'+money(c.soldUsd)+'</dd>'
+    +'<dt>Mint</dt><dd>'+esc(c.mint||"—")
+      +(c.mint?'<button class="copy" data-c="'+esc(c.mint)+'">copy</button>':'')+'</dd>'
+    +'</dl>'
+    +'<details><summary>Raw card record</summary><pre>'+esc(JSON.stringify(c,null,2))+'</pre></details>';
+  $("#drawer").classList.add("open"); $("#drawer").setAttribute("aria-hidden","false");
+  $("#scrim").classList.add("open");
+  $("#xclose").onclick=closeDetail;
+  $("#drawer").querySelectorAll(".copy").forEach(b=>b.onclick=()=>{
+    navigator.clipboard&&navigator.clipboard.writeText(b.dataset.c);
+    b.textContent="copied"; setTimeout(()=>b.textContent="copy",1200);
+  });
 }
 
 /* ---------- attempt detail (drawer) ---------- */
@@ -321,7 +466,7 @@ function detail(a){
     +'<span class="badge b-'+s+'">'+s+'-side</span>'
     +'<dl>'
     +'<dt>Timestamp (UTC)</dt><dd>'+esc(a.at)+'</dd>'
-    +'<dt>Wallet</dt><dd>'+wlabel(a.wallet)+' · '+esc(addr(a.wallet))
+    +'<dt>Wallet</dt><dd>'+glabel(a.wallet)+' · '+esc(addr(a.wallet))
       +'<button class="copy" data-c="'+esc(addr(a.wallet))+'">copy</button></dd>'
     +'<dt>Reason code</dt><dd>'+esc(r)+'</dd>'
     +'<dt>HTTP status</dt><dd>'+a.status+(a.status===0?' <span class="dim">(client-side)</span>':'')+'</dd>'
@@ -356,7 +501,11 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape")closeDetail();});
 function render(){
   if(!DATA) return;
   document.querySelectorAll("#wins .tab").forEach(t=>t.classList.toggle("on",t.dataset.w===WIN));
-  if(PICK==null) cardsView(); else walletView();
+  nav();
+  if(PICK!=null) walletView();
+  else if(PAGE==="cards") cardsPage();
+  else if(PAGE==="attempts") attemptsPage();
+  else cardsView();
   if(OPEN){
     const [at,w,c]=OPEN.split("|");
     const a=DATA.attempts.find(x=>x.at===at&&String(x.wallet)===w&&x.crate_id===c);
