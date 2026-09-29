@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """Publish the farm_loop ledger to the dashboard repo's `data` branch.
 
-Reads the append-only ledger (one JSON record per crate-open attempt), derives
-the fields the dashboard needs, masks wallet addresses, and upserts
-`ledger.json` on the `data` branch via the GitHub API -- so refreshing the data
-never triggers a GitHub Pages rebuild (the site is built from `gh-pages`).
+Reads the append-only ledger (one JSON record per crate-open attempt), attaches
+a masked wallet-address map, and upserts `ledger.json` on the `data` branch via
+the GitHub API -- so refreshing the data never triggers a GitHub Pages rebuild
+(the site is built from `gh-pages`).
 
 The page is PUBLIC, so wallet addresses are masked to `abcd…wxyz`. The dashboard
-only ever needs to tell one of our wallets from another; publishing full
-addresses would hand the game's operators our ban list.
+only needs to tell one of our wallets from another; publishing full addresses
+would hand the game's operators our ban list.
 
     python3 publish_ledger.py            # publish once (skips if unchanged)
     python3 publish_ledger.py --dry-run  # derive + scan + show, do not push
@@ -21,6 +21,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import time
 
 LEDGER = os.environ.get(
@@ -47,37 +48,18 @@ def mask(addr: str) -> str:
 
 
 def derive(rec: dict) -> dict:
-    """Apply the spec's derived-field rules."""
+    """Apply the spec's derived-field rules (used for validation + summary)."""
     status = rec.get("status")
     code = rec.get("code")
-    if status == 200:
-        outcome = "success"
-    else:
-        outcome = "denied"
-    if code:
-        reason = code
-    elif status == 0:
-        reason = "transport"
-    else:
-        reason = "unknown"
-    if status == 0:
-        side = "client"
-    elif isinstance(status, int) and status >= 400:
-        side = "server"
-    else:
-        side = "—"
+    outcome = "success" if status == 200 else "denied"
+    reason = code or ("transport" if status == 0 else "unknown")
+    side = "client" if status == 0 else ("server" if isinstance(status, int) and status >= 400 else "—")
     crate = rec.get("crate_id") or ""
     return {
-        "at": rec.get("at"), "wallet": rec.get("wallet"),
-        "crate_id": crate, "d": rec.get("d"),
-        "accepted_total": rec.get("accepted_total"),
-        "status": status, "code": code, "open_id": rec.get("open_id"),
-        "tier": rec.get("tier"), "drawn_tier": rec.get("drawn_tier"),
-        "u": rec.get("u"), "pity": rec.get("pity"),
         "outcome": outcome, "reason": reason, "side": side,
         "endpoint": "POST /v1/crates/%s/open" % crate,
         "message": "HTTP %s · POST /v1/crates/%s/open" % (status, crate),
-        "day": (rec.get("at") or "")[:10],
+        "tier": rec.get("tier"),
     }
 
 
@@ -105,19 +87,17 @@ def main() -> int:
         print("ledger missing: %s" % LEDGER, file=sys.stderr)
         return 1
 
-    # wallet index -> masked address
     wallets: dict = {}
     try:
         with open(WALLETS) as fh:
             for i, entry in enumerate(json.load(fh)):
                 if isinstance(entry, dict) and entry.get("address"):
-                    wallets[str(i)] = {"label": "W%d" % i,
-                                       "addr": mask(entry["address"])}
+                    wallets[str(i)] = {"label": "W%d" % i, "addr": mask(entry["address"])}
     except Exception as exc:
         print("wallets.json unreadable (%s) -- labels only" % exc, file=sys.stderr)
 
     # Ship the RAW stored records; the page derives everything else. That keeps
-    # the detail view byte-identical to the ledger, and roughly halves payload.
+    # the detail view byte-identical to the ledger and halves the payload.
     raw = []
     with open(LEDGER) as fh:
         for line in fh:
@@ -130,15 +110,11 @@ def main() -> int:
                 continue
     raw = raw[-MAX_ATTEMPTS:]
 
-    # Derive server-side too, purely to validate the rules and summarise.
     derived = [derive(r) for r in raw]
     denials = [a for a in derived if a["outcome"] == "denied"]
     by_reason: dict = {}
     for a in denials:
         by_reason[a["reason"]] = by_reason.get(a["reason"], 0) + 1
-    by_status: dict = {}
-    for a in derived:
-        by_status[str(a["status"])] = by_status.get(str(a["status"]), 0) + 1
 
     payload = {
         "generated_ts": time.time(),
@@ -149,7 +125,7 @@ def main() -> int:
             "successes": len(raw) - len(denials),
             "draws": len([a for a in derived
                           if a["outcome"] == "success" and a.get("tier") not in (None, "empty")]),
-            "by_reason": by_reason, "by_status": by_status,
+            "by_reason": by_reason,
             "first": raw[0]["at"] if raw else None,
             "last": raw[-1]["at"] if raw else None,
         },
@@ -168,15 +144,22 @@ def main() -> int:
               % (len(raw), len(denials), payload["stats"]["draws"], len(blob) / 1024))
         return 0
 
-    content = base64.b64encode(blob.encode()).decode()
-    args = ["api", "-X", "PUT", f"/repos/{REPO}/contents/{PATH}",
-            "-f", "message=ledger: snapshot %s" %
-            time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime()),
-            "-f", f"content={content}", "-f", f"branch={BRANCH}"]
+    # --input (a file) avoids the ARG_MAX limit that a base64 argv would hit.
+    body = {
+        "message": "ledger: snapshot %s" % time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime()),
+        "content": base64.b64encode(blob.encode()).decode(),
+        "branch": BRANCH,
+    }
     sha = remote_sha()
     if sha:
-        args += ["-f", f"sha={sha}"]
-    r = gh(*args)
+        body["sha"] = sha
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as fh:
+        json.dump(body, fh)
+        tmp = fh.name
+    try:
+        r = gh("api", "-X", "PUT", f"/repos/{REPO}/contents/{PATH}", "--input", tmp)
+    finally:
+        os.unlink(tmp)
     if r.returncode != 0:
         print("push failed: %s" % (r.stderr or r.stdout).strip(), file=sys.stderr)
         return 3

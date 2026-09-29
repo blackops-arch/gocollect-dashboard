@@ -3,146 +3,271 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>GoCollect · Fleet Dashboard</title>
+<title>Farm-loop ledger · denials &amp; draws</title>
 <style>
 :root{--bg:#0b0d11;--fg:#e6e9ef;--dim:#8b93a1;--ok:#4ade80;--warn:#fbbf24;
---bad:#f87171;--card:#141821;--line:#232936;--acc:#60a5fa}
+--bad:#f87171;--card:#141821;--line:#232936;--acc:#60a5fa;--vio:#c084fc}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);
 font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-header{padding:14px 20px;border-bottom:1px solid var(--line);display:flex;
-gap:18px;align-items:baseline;flex-wrap:wrap;position:sticky;top:0;
-background:rgba(11,13,17,.95);backdrop-filter:blur(6px);z-index:5}
-h1{font-size:16px;margin:0;font-weight:700;letter-spacing:-.2px}
-.dim{color:var(--dim);font-size:13px}
-main{padding:18px 20px 40px;max-width:1400px;margin:0 auto}
-.kpis{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:20px}
-.kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
-.kpi .v{font-size:22px;font-weight:700;line-height:1.2}
-.kpi .v small{font-size:13px;font-weight:500;color:var(--dim)}
-.kpi .l{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.6px;margin-top:2px}
-.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(290px,1fr))}
-.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
-.chead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
-.wid{font-family:ui-monospace,Menlo,monospace;font-weight:700;font-size:15px}
-.count{font-size:19px;font-weight:700}
-.count small{font-size:12px;font-weight:500;color:var(--dim)}
-.bar{height:6px;background:#252b37;border-radius:3px;overflow:hidden;margin:8px 0 10px}
-.bar>i{display:block;height:100%;background:var(--ok);transition:width .4s}
-.bar.full>i{background:var(--warn)}
-.pills{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
-.pill{font-size:11px;padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--dim);white-space:nowrap}
-.pill.live{color:var(--ok);border-color:#25503a}
-.pill.stall{color:var(--bad);border-color:#5a2a2a}
-.pill.pity{color:var(--acc);border-color:#1e3a5f}
+header{padding:12px 16px;border-bottom:1px solid var(--line);position:sticky;top:0;
+background:rgba(11,13,17,.96);backdrop-filter:blur(6px);z-index:20}
+.row{display:flex;gap:14px;align-items:baseline;flex-wrap:wrap}
+h1{font-size:15px;margin:0;font-weight:700}
+.dim{color:var(--dim);font-size:12.5px}
+main{padding:14px 16px 60px;max-width:1200px;margin:0 auto}
+.tabs{display:flex;gap:6px;margin:14px 0 12px;flex-wrap:wrap}
+.tab{padding:7px 14px;border:1px solid var(--line);border-radius:8px;background:transparent;
+color:var(--dim);cursor:pointer;font:inherit;font-size:13px}
+.tab.on{background:var(--card);color:var(--fg);border-color:#38414f}
+.tab b{color:var(--fg)}
+.kpis{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));margin-bottom:14px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:9px 12px}
+.kpi .v{font-size:19px;font-weight:700;line-height:1.2}
+.kpi .l{font-size:10.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
 table{width:100%;border-collapse:collapse;font-size:12.5px}
-th{text-align:left;color:var(--dim);font-weight:600;font-size:11px;
-text-transform:uppercase;letter-spacing:.5px;padding:6px 8px;border-bottom:1px solid var(--line)}
-td{padding:6px 8px;border-bottom:1px solid #1a1f29;font-family:ui-monospace,Menlo,monospace}
-td.tier-empty{color:var(--dim)}
-td.tier-common{color:#9aa0a6}td.tier-uncommon{color:var(--ok)}
-td.tier-rare{color:var(--acc)}td.tier-grail{color:var(--warn);font-weight:700}
-h2{font-size:14px;margin:26px 0 10px;color:var(--dim)}
-footer{color:var(--dim);font-size:11.5px;padding:18px 20px;border-top:1px solid var(--line);margin-top:24px}
+th{text-align:left;color:var(--dim);font-weight:600;font-size:10.5px;text-transform:uppercase;
+letter-spacing:.5px;padding:8px;border-bottom:1px solid var(--line);cursor:pointer;white-space:nowrap;
+position:sticky;top:52px;background:var(--card);z-index:5}
+th.sel{color:var(--acc)}
+th .ar{opacity:.5;font-size:9px}
+td{padding:7px 8px;border-bottom:1px solid #1a1f29;font-family:ui-monospace,Menlo,monospace;
+white-space:nowrap}
+tr.dr{cursor:pointer}
+tr.dr:hover{background:#1a1f2a}
+.badge{font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid;white-space:nowrap}
+.b-srv{color:var(--warn);border-color:#5a4520}
+.b-cli{color:var(--vio);border-color:#4a2f63}
+.b-ok{color:var(--ok);border-color:#25503a}
+.t-common{color:#9aa0a6}.t-uncommon{color:var(--ok)}
+.t-rare{color:var(--acc)}.t-grail{color:var(--warn);font-weight:700}
+.t-empty{color:var(--dim)}
+.s200{color:var(--ok)}.s4xx{color:var(--warn)}.s5xx{color:var(--bad)}.s0{color:var(--vio)}
+#drawer{position:fixed;inset:0 0 0 auto;width:min(560px,100%);background:#0f131a;
+border-left:1px solid var(--line);transform:translateX(102%);transition:transform .22s;
+overflow-y:auto;z-index:40;padding:16px 18px 60px}
+#drawer.open{transform:none}
+#scrim{position:fixed;inset:0;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;
+transition:opacity .22s;z-index:30}
+#scrim.open{opacity:1;pointer-events:auto}
+.dhead{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:4px}
+.dhead h2{font-size:16px;margin:0}
+.x{background:none;border:1px solid var(--line);color:var(--dim);border-radius:7px;
+padding:4px 10px;cursor:pointer;font:inherit}
+dl{display:grid;grid-template-columns:130px 1fr;gap:6px 10px;margin:14px 0;font-size:13px}
+dt{color:var(--dim);font-size:11.5px;text-transform:uppercase;letter-spacing:.4px;padding-top:2px}
+dd{margin:0;font-family:ui-monospace,Menlo,monospace;word-break:break-all}
+.note{background:#191d27;border:1px solid var(--line);border-left:3px solid var(--acc);
+border-radius:7px;padding:9px 12px;font-size:12.5px;color:var(--dim);margin:12px 0}
+details{margin:12px 0}
+summary{cursor:pointer;color:var(--acc);font-size:12.5px}
+pre{background:#0a0c10;border:1px solid var(--line);border-radius:8px;padding:11px;
+overflow-x:auto;font-size:11.5px;margin:9px 0 0;color:#cdd3de}
+h3{font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.6px;
+margin:20px 0 8px;font-weight:600}
+.copy{background:none;border:1px solid var(--line);color:var(--acc);border-radius:5px;
+padding:1px 7px;cursor:pointer;font-size:11px;margin-left:6px}
+footer{color:var(--dim);font-size:11px;padding:16px;border-top:1px solid var(--line);margin-top:20px}
 .err{color:var(--bad)}
+@media(max-width:620px){dl{grid-template-columns:1fr}dt{padding-top:8px}}
 </style>
 </head>
 <body>
 <header>
-  <h1>GoCollect · Fleet</h1>
-  <div class="dim" id="day">–</div>
-  <div class="dim" id="upd">–</div>
-  <div class="dim" id="snap">–</div>
+  <div class="row">
+    <h1>Farm-loop ledger</h1>
+    <span class="dim" id="hdr">–</span>
+    <span class="dim" id="upd">–</span>
+  </div>
 </header>
 <main>
   <div class="kpis" id="kpis"></div>
-  <div class="grid" id="grid"></div>
-  <h2>Recent opens</h2>
-  <div class="card" style="padding:6px 10px">
-    <table id="recent">
-      <thead><tr><th>time (UTC)</th><th>wallet</th><th>tier</th><th>roll u</th><th>pity</th></tr></thead>
-      <tbody></tbody>
-    </table>
+  <div class="tabs">
+    <button class="tab on" data-v="denials">Denials <b id="n-den">0</b></button>
+    <button class="tab" data-v="opens">Opens <b id="n-ops">0</b></button>
+    <button class="tab" data-v="all">All attempts <b id="n-all">0</b></button>
   </div>
+  <div class="card"><table id="tbl">
+    <thead><tr id="thead"></tr></thead>
+    <tbody></tbody>
+  </table></div>
 </main>
-<footer>
-  Live game data fetched from gocollect.fun · fleet snapshot from <code>state.json</code> ·
-  no keys, addresses or log content · quota resets 00:00 UTC (07:00 WIB)
-</footer>
+<div id="scrim"></div>
+<aside id="drawer" aria-hidden="true"></aside>
+<footer>All times UTC · auto-refresh 8s · the ledger stores the server's status/code, not its
+response body or message text</footer>
 <script>
-const STATS="https://gocollect.fun/v1/stats";
-const STORE="https://gocollect.fun/v1/store";
-// Fleet snapshot lives on the `data` branch so publishing it never triggers a
-// Pages rebuild. raw.githubusercontent.com serves it with CORS `*`.
-const RAW_STATE="https://raw.githubusercontent.com/blackops-arch/gocollect-dashboard/data/state.json";
+const RAW="https://raw.githubusercontent.com/blackops-arch/gocollect-dashboard/data/ledger.json";
 const $=s=>document.querySelector(s);
-const fmt=(n,d)=>n==null?"–":Number(n).toLocaleString(undefined,
-  {minimumFractionDigits:d||0,maximumFractionDigits:d||0});
-const ago=ts=>{if(!ts)return"–";const s=Math.max(0,Date.now()/1000-ts);
-  if(s<60)return Math.floor(s)+"s ago";if(s<3600)return Math.floor(s/60)+"m ago";
-  return Math.floor(s/3600)+"h ago";};
+let DATA=null, VIEW="denials", SORT={denials:["at",-1],opens:["at",-1],all:["at",-1]}, OPEN=null;
 
-async function jget(u){const r=await fetch(u,{cache:"no-store"});return r.json();}
+/* ---- derived fields, exactly per spec ---- */
+const outcome=a=>a.status===200?"success":"denied";
+const reason=a=>a.code?a.code:(a.status===0?"transport":"unknown");
+const side=a=>a.status===0?"client":(a.status>=400?"server":"—");
+const endpoint=a=>"POST /v1/crates/"+(a.crate_id||"")+"/open";
+const message=a=>"HTTP "+a.status+" · POST /v1/crates/"+(a.crate_id||"")+"/open";
+const wlabel=w=>"W"+w;
+const addr=w=>(DATA&&DATA.wallets&&DATA.wallets[String(w)]||{}).addr||"—";
+const roll=u=>u==null?"—":Number(u).toFixed(5);
+const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const hhmmss=at=>(at||"").slice(11,19);
+const scls=s=>s===200?"s200":s===0?"s0":s>=500?"s5xx":"s4xx";
 
-function kpi(v,l){return '<div class="kpi"><div class="v">'+v+'</div><div class="l">'+l+'</div></div>';}
-
-function render(game,state){
-  const odds=(game.free&&game.free.odds)||{};
-  const total=Object.values(odds).reduce((a,b)=>a+b,0);
-  const t=(state&&state.totals)||{opened:0,cards:0,left:0};
-  const slots=(state&&state.slots)||0;
-  const limit=(state&&state.limit)||25;
-  const exp=total? (t.left*total).toFixed(2) : "–";
-
-  $("#day").textContent=(state.day_utc||"–")+" UTC · "+slots+" slots";
-  $("#upd").textContent="updated "+new Date().toLocaleTimeString();
-  $("#snap").textContent="snapshot "+ago(state.generated_ts);
-
-  $("#kpis").innerHTML=
-    kpi(t.opened+"<small>/"+(limit*slots)+"</small>","opens today")+
-    kpi(t.left,"opens left")+
-    kpi(t.cards,"cards today")+
-    kpi(exp,"expected cards left")+
-    kpi(total?(total*100).toFixed(3)+"%":"–","free-crate odds")+
-    kpi(game.cards24==null?"–":fmt(game.cards24),"platform cards 24h")+
-    kpi(game.cards24Usd==null?"–":"$"+fmt(game.cards24Usd),"platform value 24h");
-
-  $("#grid").innerHTML=(state.wallets||[]).map(w=>{
-    const pct=Math.min(100,w.opened/(w.limit||limit)*100);
-    const cls=w.opened>=(w.limit||limit)?"bar full":"bar";
-    const st=w.state==="walking"?'<span class="pill live">walking</span>'
-      :w.state==="stalled"?'<span class="pill stall">stalled</span>'
-      :'<span class="pill">'+(w.state||"idle")+'</span>';
-    return '<div class="card"><div class="chead"><span class="wid">G'+w.idx+'</span>'
-      +'<span class="count">'+w.opened+'<small> opened</small></span></div>'
-      +'<div class="'+cls+'"><i style="width:'+pct+'%"></i></div>'
-      +'<div class="pills"><span class="pill">left '+w.left+'</span>'
-      +'<span class="pill">cards '+w.cards+'</span>'
-      +(w.pity==null?"":'<span class="pill pity">pity '+w.pity+'</span>')
-      +st+'<span class="dim" style="font-size:11.5px">'+ago(w.last_ts)+'</span></div></div>';
-  }).join("")||'<div class="card dim">no active slots</div>';
-
-  const rows=(state.recent||[]).map(r=>{
-    const u=r.u==null?"–":Number(r.u).toFixed(5);
-    return '<tr><td>'+(r.at||"").replace("T"," ").replace("Z","")+'</td><td>G'+r.wallet
-      +'</td><td class="tier-'+r.tier+'">'+r.tier+'</td><td>'+u+'</td><td>'
-      +(r.pity==null?"–":r.pity)+'</td></tr>';}).join("");
-  $("#recent tbody").innerHTML=rows||'<tr><td colspan="5" class="dim">no opens yet</td></tr>';
+function sameReasonToday(a){
+  const day=(a.at||"").slice(0,10), r=reason(a);
+  let n=0;
+  for(const b of DATA.attempts)
+    if((b.at||"").slice(0,10)===day && outcome(b)==="denied" && reason(b)===r) n++;
+  return n;
 }
+function lastN(w,n){
+  return DATA.attempts.filter(a=>a.wallet===w).slice(-n).reverse();
+}
+
+/* ---- rows ---- */
+function rows(){
+  let r=DATA.attempts.slice();
+  if(VIEW==="denials") r=r.filter(a=>outcome(a)==="denied");
+  if(VIEW==="opens")   r=r.filter(a=>outcome(a)==="success"&&a.tier);
+  const [k,dir]=SORT[VIEW];
+  r.sort((a,b)=>{
+    let x,y;
+    if(k==="at"){x=a.at||"";y=b.at||"";}
+    else if(k==="wallet"){x=a.wallet;y=b.wallet;}
+    else if(k==="reason"){x=reason(a);y=reason(b);}
+    else if(k==="status"){x=a.status;y=b.status;}
+    else if(k==="tier"){x=a.tier||"";y=b.tier||"";}
+    else if(k==="drawn_tier"){x=a.drawn_tier||"";y=b.drawn_tier||"";}
+    else if(k==="u"){x=a.u==null?-1:a.u;y=b.u==null?-1:b.u;}
+    else if(k==="open_id"){x=a.open_id==null?-1:a.open_id;y=b.open_id==null?-1:b.open_id;}
+    if(x<y)return -dir; if(x>y)return dir; return 0;
+  });
+  return r;
+}
+const COLS={
+  denials:[["at","time"],["wallet","wallet"],["reason","reason"],["message","message"]],
+  opens:[["at","time"],["wallet","wallet"],["tier","tier"],["drawn_tier","drawn"],["u","roll"],["open_id","mint"]],
+  all:[["at","time"],["wallet","wallet"],["status","status"],["reason","reason"],["side","side"],["tier","tier"]]
+};
+function head(){
+  const [k,dir]=SORT[VIEW];
+  $("#thead").innerHTML=COLS[VIEW].map(([f,l])=>
+    '<th data-f="'+f+'" class="'+(f===k?"sel":"")+'">'+l+
+    (f===k?' <span class="ar">'+(dir<0?"▼":"▲")+'</span>':'')+'</th>').join("");
+  $("#thead").querySelectorAll("th").forEach(th=>th.onclick=()=>{
+    const f=th.dataset.f;
+    SORT[VIEW]=[f, (SORT[VIEW][0]===f? -SORT[VIEW][1] : (f==="at"?-1:1))];
+    render();
+  });
+}
+function body(){
+  const rs=rows();
+  if(!rs.length){$("#tbl tbody").innerHTML='<tr><td class="dim" style="padding:14px">nothing here</td></tr>';return;}
+  $("#tbl tbody").innerHTML=rs.map(a=>{
+    const i=DATA.attempts.indexOf(a);
+    if(VIEW==="denials")
+      return '<tr class="dr" data-i="'+i+'"><td>'+hhmmss(a.at)+'</td><td>'+wlabel(a.wallet)
+        +'</td><td><span class="badge b-'+side(a)+'">'+esc(reason(a))+'</span></td>'
+        +'<td>'+esc(message(a))+'</td></tr>';
+    if(VIEW==="opens")
+      return '<tr class="dr" data-i="'+i+'"><td>'+hhmmss(a.at)+'</td><td>'+wlabel(a.wallet)
+        +'</td><td class="t-'+esc(a.tier)+'">'+esc(a.tier)+'</td><td class="t-'
+        +esc(a.drawn_tier||"empty")+'">'+esc(a.drawn_tier||"—")+'</td><td>'+roll(a.u)
+        +'</td><td>'+(a.open_id==null?"—":a.open_id)+'</td></tr>';
+    const out=outcome(a);
+    return '<tr class="dr" data-i="'+i+'"><td>'+hhmmss(a.at)+'</td><td>'+wlabel(a.wallet)
+      +'</td><td class="'+scls(a.status)+'">'+a.status+'</td><td>'
+      +(out==="denied"?'<span class="badge b-'+side(a)+'">'+esc(reason(a))+'</span>':'—')
+      +'</td><td>'+(out==="denied"?side(a):"—")+'</td><td class="t-'+esc(a.tier||"empty")+'">'
+      +esc(a.tier||"—")+'</td></tr>';
+  }).join("");
+  $("#tbl tbody").querySelectorAll("tr.dr").forEach(tr=>
+    tr.onclick=()=>detail(DATA.attempts[+tr.dataset.i]));
+}
+
+/* ---- detail view (3c) ---- */
+function detail(a){
+  if(!a) return;
+  OPEN=a.at+"|"+a.wallet+"|"+a.crate_id;
+  const out=outcome(a), r=reason(a), s=side(a);
+  const rows10=lastN(a.wallet,10).map(b=>
+    '<tr><td>'+hhmmss(b.at)+'</td><td class="'+scls(b.status)+'">'+b.status
+    +'</td><td class="t-'+esc(b.tier||"empty")+'">'+esc(b.tier||"—")+'</td><td>'
+    +esc(b.code||"—")+'</td></tr>').join("");
+  $("#drawer").innerHTML=
+    '<div class="dhead"><h2>'+(out==="denied"?"Denied · "+esc(r):"Accepted · "+esc(a.tier||""))+'</h2>'
+    +'<button class="x" id="xclose">close</button></div>'
+    +'<span class="badge b-'+s+'">'+s+'-side</span>'
+    +'<dl>'
+    +'<dt>Timestamp (UTC)</dt><dd>'+esc(a.at)+'</dd>'
+    +'<dt>Wallet</dt><dd>'+wlabel(a.wallet)+' · '+esc(addr(a.wallet))
+      +'<button class="copy" data-c="'+esc(addr(a.wallet))+'">copy</button></dd>'
+    +'<dt>Reason code</dt><dd>'+esc(r)+'</dd>'
+    +'<dt>HTTP status</dt><dd>'+a.status+(a.status===0?' <span class="dim">(client-side)</span>':'')+'</dd>'
+    +'<dt>Endpoint</dt><dd>'+esc(endpoint(a))+'</dd>'
+    +'<dt>Crate</dt><dd>'+esc(a.crate_id)+'</dd>'
+    +'<dt>Distance</dt><dd>'+(a.d==null?"—":a.d+" m")+'</dd>'
+    +'<dt>Same reason today</dt><dd>'+sameReasonToday(a)+'×</dd>'
+    +'<dt>Pity</dt><dd>'+(a.pity==null?"—":a.pity)+'</dd>'
+    +'<dt>Roll u</dt><dd>'+roll(a.u)+'</dd>'
+    +'</dl>'
+    +'<div class="note">The ledger records the server\'s error code, not its response body or '
+    +'message text — <code>farm_loop</code> never stored them. The raw record below is everything '
+    +'that exists for this attempt.</div>'
+    +'<details><summary>Raw ledger record</summary><pre>'+esc(JSON.stringify(a,null,2))+'</pre></details>'
+    +'<h3>Last 10 attempts on this wallet</h3>'
+    +'<div class="card"><table><thead><tr><th>time</th><th>status</th><th>tier</th><th>code</th></tr></thead>'
+    +'<tbody>'+rows10+'</tbody></table></div>';
+  $("#drawer").classList.add("open"); $("#drawer").setAttribute("aria-hidden","false");
+  $("#scrim").classList.add("open");
+  $("#xclose").onclick=closeDetail;
+  $("#drawer").querySelectorAll(".copy").forEach(b=>b.onclick=()=>{
+    navigator.clipboard&&navigator.clipboard.writeText(b.dataset.c);
+    b.textContent="copied"; setTimeout(()=>b.textContent="copy",1200);
+  });
+}
+function closeDetail(){OPEN=null;$("#drawer").classList.remove("open");
+  $("#drawer").setAttribute("aria-hidden","true");$("#scrim").classList.remove("open");}
+$("#scrim").onclick=closeDetail;
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeDetail();});
+
+/* ---- chrome ---- */
+function render(){
+  const st=DATA.stats||{};
+  const dr=DATA.attempts.filter(a=>outcome(a)==="denied");
+  $("#hdr").textContent=(st.attempts||0)+" attempts · "+(st.first||"?").slice(0,16)+" → "+(st.last||"?").slice(0,16);
+  $("#upd").textContent="updated "+new Date().toLocaleTimeString();
+  $("#n-den").textContent=dr.length;
+  $("#n-ops").textContent=DATA.attempts.filter(a=>outcome(a)==="success"&&a.tier).length;
+  $("#n-all").textContent=DATA.attempts.length;
+  const byR=st.by_reason||{};
+  const top=Object.entries(byR).sort((a,b)=>b[1]-a[1]).slice(0,4)
+    .map(([k,v])=>'<div class="kpi"><div class="v">'+v+'</div><div class="l">'+esc(k)+'</div></div>').join("");
+  $("#kpis").innerHTML=
+    '<div class="kpi"><div class="v">'+(st.attempts||0)+'</div><div class="l">attempts</div></div>'
+   +'<div class="kpi"><div class="v">'+dr.length+'</div><div class="l">denied</div></div>'
+   +'<div class="kpi"><div class="v">'+(st.successes||0)+'</div><div class="l">accepted</div></div>'
+   +'<div class="kpi"><div class="v">'+(st.draws||0)+'</div><div class="l">draws (non-empty)</div></div>'
+   +top;
+  document.querySelectorAll(".tab").forEach(t=>
+    t.classList.toggle("on",t.dataset.v===VIEW));
+  head(); body();
+}
+document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{VIEW=t.dataset.v;render();});
 
 async function tick(){
-  const out={free:{},cards24:null,cards24Usd:null};
-  let state={wallets:[],recent:[],totals:{}};
-  try{const s=await jget(STATS);out.cards24=s.cards24;out.cards24Usd=s.cards24Usd;}
-  catch(e){}
-  try{const st=await jget(STORE);out.free=st.contents&&st.contents.free||{};}
-  catch(e){}
-  try{state=await jget(RAW_STATE+"?t="+Date.now());}
-  catch(e){try{state=await jget("./state.json?t="+Date.now());}
-  catch(e2){$("#snap").innerHTML='<span class="err">snapshot unavailable</span>';}}
-  render(out,state);
+  try{
+    const r=await fetch(RAW+"?t="+Date.now(),{cache:"no-store"});
+    DATA=await r.json();
+    render();
+    if(OPEN){const [at,w,c]=OPEN.split("|");
+      const a=DATA.attempts.find(x=>x.at===at&&String(x.wallet)===w&&x.crate_id===c);
+      if(a)detail(a);}
+  }catch(e){$("#upd").innerHTML='<span class="err">feed unreachable</span>';}
 }
-tick();setInterval(tick,30000);
+tick();setInterval(tick,8000);
 </script>
 </body>
 </html>
