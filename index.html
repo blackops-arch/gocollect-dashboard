@@ -83,6 +83,13 @@ footer{color:var(--dim);font-size:11px;padding:16px;border-top:1px solid var(--l
 </header>
 <main>
   <div class="kpis" id="kpis"></div>
+  <div class="tabs" id="wins">
+    <span class="dim" style="align-self:center;margin-right:2px">window</span>
+    <button class="tab" data-w="1h">last 1h</button>
+    <button class="tab" data-w="6h">6h</button>
+    <button class="tab on" data-w="24h">24h</button>
+    <button class="tab" data-w="all">all</button>
+  </div>
   <div class="tabs">
     <button class="tab on" data-v="denials">Denials <b id="n-den">0</b></button>
     <button class="tab" data-v="opens">Opens <b id="n-ops">0</b></button>
@@ -100,7 +107,15 @@ response body or message text</footer>
 <script>
 const RAW="https://raw.githubusercontent.com/blackops-arch/gocollect-dashboard/data/ledger.json";
 const $=s=>document.querySelector(s);
-let DATA=null, VIEW="denials", SORT={denials:["at",-1],opens:["at",-1],all:["at",-1]}, OPEN=null;
+let DATA=null, VIEW="denials", WIN="24h", SORT={denials:["at",-1],opens:["at",-1],all:["at",-1]}, OPEN=null;
+const WIN_MS={"1h":3600e3,"6h":6*3600e3,"24h":24*3600e3,"all":Infinity};
+/* The ledger is cumulative, so an all-time reason count looks like an ongoing
+   problem long after it stopped. Everything below is scoped to a time window. */
+function winRows(){
+  if(WIN==="all") return DATA.attempts;
+  const cut=Date.now()-WIN_MS[WIN];
+  return DATA.attempts.filter(a=>Date.parse(a.at)>=cut);
+}
 
 /* ---- derived fields, exactly per spec ---- */
 const outcome=a=>a.status===200?"success":"denied";
@@ -128,7 +143,7 @@ function lastN(w,n){
 
 /* ---- rows ---- */
 function rows(){
-  let r=DATA.attempts.slice();
+  let r=winRows().slice();
   if(VIEW==="denials") r=r.filter(a=>outcome(a)==="denied");
   if(VIEW==="opens")   r=r.filter(a=>outcome(a)==="success"&&a.tier);
   const [k,dir]=SORT[VIEW];
@@ -235,27 +250,38 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape")closeDetail();});
 
 /* ---- chrome ---- */
 function render(){
+  const A=winRows();
   const st=DATA.stats||{};
-  const dr=DATA.attempts.filter(a=>outcome(a)==="denied");
-  $("#hdr").textContent=(st.attempts||0)+" attempts · "+(st.first||"?").slice(0,16)+" → "+(st.last||"?").slice(0,16);
+  const dr=A.filter(a=>outcome(a)==="denied");
+  const acc=A.filter(a=>outcome(a)==="success");
+  const draws=acc.filter(a=>a.tier&&a.tier!=="empty").length;
+  const tf=dr.filter(a=>reason(a)==="too_fast").length;
+  const winLabel={ "1h":"last hour","6h":"last 6h","24h":"last 24h","all":"all time" }[WIN];
+  const span=A.length?A[0].at.slice(0,16)+" → "+A[A.length-1].at.slice(0,16):"no attempts in window";
+  $("#hdr").textContent=winLabel+" · "+A.length+" attempts · "+span;
   $("#upd").textContent="updated "+new Date().toLocaleTimeString();
   $("#n-den").textContent=dr.length;
-  $("#n-ops").textContent=DATA.attempts.filter(a=>outcome(a)==="success"&&a.tier).length;
-  $("#n-all").textContent=DATA.attempts.length;
-  const byR=st.by_reason||{};
+  $("#n-ops").textContent=acc.filter(a=>a.tier).length;
+  $("#n-all").textContent=A.length;
+  const byR={};
+  dr.forEach(a=>{const k=reason(a); byR[k]=(byR[k]||0)+1;});
   const top=Object.entries(byR).sort((a,b)=>b[1]-a[1]).slice(0,4)
     .map(([k,v])=>'<div class="kpi"><div class="v">'+v+'</div><div class="l">'+esc(k)+'</div></div>').join("");
+  const tfc=tf===0?"var(--ok)":"var(--warn)";
   $("#kpis").innerHTML=
-    '<div class="kpi"><div class="v">'+(st.attempts||0)+'</div><div class="l">attempts</div></div>'
+    '<div class="kpi"><div class="v">'+A.length+'</div><div class="l">attempts</div></div>'
    +'<div class="kpi"><div class="v">'+dr.length+'</div><div class="l">denied</div></div>'
-   +'<div class="kpi"><div class="v">'+(st.successes||0)+'</div><div class="l">accepted</div></div>'
-   +'<div class="kpi"><div class="v">'+(st.draws||0)+'</div><div class="l">draws (non-empty)</div></div>'
+   +'<div class="kpi"><div class="v">'+acc.length+'</div><div class="l">accepted</div></div>'
+   +'<div class="kpi"><div class="v">'+draws+'</div><div class="l">draws (non-empty)</div></div>'
+   +'<div class="kpi"><div class="v" style="color:'+tfc+'">'+tf+'</div><div class="l">too_fast (429)</div></div>'
    +top;
-  document.querySelectorAll(".tab").forEach(t=>
+  document.querySelectorAll("#wins .tab").forEach(t=>t.classList.toggle("on",t.dataset.w===WIN));
+  document.querySelectorAll(".tab[data-v]").forEach(t=>
     t.classList.toggle("on",t.dataset.v===VIEW));
   head(); body();
 }
-document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{VIEW=t.dataset.v;render();});
+document.querySelectorAll("#wins .tab").forEach(t=>t.onclick=()=>{WIN=t.dataset.w;render();});
+document.querySelectorAll(".tab[data-v]").forEach(t=>t.onclick=()=>{VIEW=t.dataset.v;render();});
 
 async function tick(){
   try{
