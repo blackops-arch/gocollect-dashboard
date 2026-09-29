@@ -3,60 +3,103 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Farm-loop ledger · denials &amp; draws</title>
+<title>Farm-loop ledger · wallets</title>
 <style>
 :root{--bg:#0b0d11;--fg:#e6e9ef;--dim:#8b93a1;--ok:#4ade80;--warn:#fbbf24;
---bad:#f87171;--card:#141821;--line:#232936;--acc:#60a5fa;--vio:#c084fc}
+--bad:#f87171;--card:#141821;--card2:#1a1f2a;--line:#232936;--acc:#60a5fa;--vio:#c084fc}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--fg);
 font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-header{padding:12px 16px;border-bottom:1px solid var(--line);position:sticky;top:0;
-background:rgba(11,13,17,.96);backdrop-filter:blur(6px);z-index:20}
-.row{display:flex;gap:14px;align-items:baseline;flex-wrap:wrap}
+header{padding:12px 16px;border-bottom:1px solid var(--line);background:#0d1016;
+display:flex;gap:14px;align-items:baseline;flex-wrap:wrap}
 h1{font-size:15px;margin:0;font-weight:700}
 .dim{color:var(--dim);font-size:12.5px}
-main{padding:14px 16px 60px;max-width:1200px;margin:0 auto}
-.tabs{display:flex;gap:6px;margin:14px 0 12px;flex-wrap:wrap}
-.tab{padding:7px 14px;border:1px solid var(--line);border-radius:8px;background:transparent;
-color:var(--dim);cursor:pointer;font:inherit;font-size:13px}
-.tab.on{background:var(--card);color:var(--fg);border-color:#38414f}
-.tab b{color:var(--fg)}
-.kpis{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));margin-bottom:14px}
+main{padding:16px;max-width:1250px;margin:0 auto}
+.tabs{display:flex;gap:6px;margin:0 0 14px;flex-wrap:wrap;align-items:center}
+.tab{padding:6px 13px;border:1px solid var(--line);border-radius:8px;background:transparent;
+color:var(--dim);cursor:pointer;font:inherit;font-size:13px;line-height:1.4}
+.tab:hover{border-color:#38414f}
+.tab.on{background:var(--card2);color:var(--fg);border-color:#3d4756}
+.tab b{color:var(--fg);font-weight:600}
+
+/* ---- wallet cards ---- */
+.wgrid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(235px,1fr))}
+.wcard{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:13px;
+cursor:pointer;transition:border-color .15s,transform .1s;display:flex;flex-direction:column;gap:9px}
+.wcard:hover{border-color:#3d4756;transform:translateY(-1px)}
+.wcard .top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.wname{font-family:ui-monospace,Menlo,monospace;font-weight:700;font-size:16px}
+.waddr{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--dim)}
+.wbig{font-size:26px;font-weight:700;line-height:1;font-family:ui-monospace,Menlo,monospace}
+.wbig span{font-size:11px;font-weight:500;color:var(--dim);font-family:inherit;margin-left:4px}
+.split{display:flex;height:6px;border-radius:3px;overflow:hidden;background:#252b37}
+.split i{display:block;height:100%}
+.si-ok{background:var(--ok)}.si-den{background:var(--warn)}
+.wpills{display:flex;gap:6px;flex-wrap:wrap}
+.pill{font-size:10.5px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);
+color:var(--dim);white-space:nowrap}
+.pill.ok{color:var(--ok);border-color:#25503a}
+.pill.den{color:var(--warn);border-color:#5a4520}
+.pill.draw{color:var(--acc);border-color:#1e3a5f}
+.pill.zero{color:var(--ok);border-color:#25503a}
+.pill.bad{color:var(--bad);border-color:#5a2a2a}
+.wfoot{display:flex;justify-content:space-between;align-items:center;gap:8px;
+font-size:11px;color:var(--dim);margin-top:1px}
+
+/* ---- kpis ---- */
+.kpis{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));margin-bottom:14px}
 .kpi{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:9px 12px}
-.kpi .v{font-size:19px;font-weight:700;line-height:1.2}
-.kpi .l{font-size:10.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px}
+.kpi .v{font-size:19px;font-weight:700;line-height:1.2;font-family:ui-monospace,Menlo,monospace}
+.kpi .l{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+
+/* ---- tables ---- */
 .card{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.tscroll{max-height:58vh;overflow:auto}
 table{width:100%;border-collapse:collapse;font-size:12.5px}
-th{text-align:left;color:var(--dim);font-weight:600;font-size:10.5px;text-transform:uppercase;
+thead th{text-align:left;color:var(--dim);font-weight:600;font-size:10.5px;text-transform:uppercase;
 letter-spacing:.5px;padding:8px;border-bottom:1px solid var(--line);cursor:pointer;white-space:nowrap;
-position:sticky;top:52px;background:var(--card);z-index:5}
-th.sel{color:var(--acc)}
-th .ar{opacity:.5;font-size:9px}
+position:sticky;top:0;background:var(--card);z-index:2}
+thead th.sel{color:var(--acc)}
+thead th .ar{opacity:.5;font-size:9px}
 td{padding:7px 8px;border-bottom:1px solid #1a1f29;font-family:ui-monospace,Menlo,monospace;
 white-space:nowrap}
-tr.dr{cursor:pointer}
-tr.dr:hover{background:#1a1f2a}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:var(--card2)}
 .badge{font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid;white-space:nowrap}
-.b-srv{color:var(--warn);border-color:#5a4520}
-.b-cli{color:var(--vio);border-color:#4a2f63}
-.b-ok{color:var(--ok);border-color:#25503a}
+.b-server{color:var(--warn);border-color:#5a4520}
+.b-client{color:var(--vio);border-color:#4a2f63}
 .t-common{color:#9aa0a6}.t-uncommon{color:var(--ok)}
 .t-rare{color:var(--acc)}.t-grail{color:var(--warn);font-weight:700}
 .t-empty{color:var(--dim)}
 .s200{color:var(--ok)}.s4xx{color:var(--warn)}.s5xx{color:var(--bad)}.s0{color:var(--vio)}
+.reasons{display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));margin-bottom:14px}
+.rcard{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:10px 12px;
+display:flex;justify-content:space-between;align-items:center;gap:10px}
+.rcard .n{font-family:ui-monospace,Menlo,monospace;font-size:18px;font-weight:700}
+.rcard .rn{font-size:12px;color:var(--dim)}
+.back{background:none;border:1px solid var(--line);color:var(--acc);border-radius:8px;
+padding:5px 12px;cursor:pointer;font:inherit;font-size:13px}
+.back:hover{border-color:var(--acc)}
+.whead{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.whead .nm{font-family:ui-monospace,Menlo,monospace;font-size:20px;font-weight:700}
+h2{font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.6px;
+margin:0 0 9px;font-weight:600}
+
+/* ---- drawer ---- */
 #drawer{position:fixed;inset:0 0 0 auto;width:min(560px,100%);background:#0f131a;
-border-left:1px solid var(--line);transform:translateX(102%);transition:transform .22s;
+border-left:1px solid var(--line);transform:translateX(102%);transition:transform .2s;
 overflow-y:auto;z-index:40;padding:16px 18px 60px}
 #drawer.open{transform:none}
 #scrim{position:fixed;inset:0;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;
-transition:opacity .22s;z-index:30}
+transition:opacity .2s;z-index:30}
 #scrim.open{opacity:1;pointer-events:auto}
-.dhead{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:4px}
-.dhead h2{font-size:16px;margin:0}
+.dhead{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px}
+.dhead h3{font-size:16px;margin:0}
 .x{background:none;border:1px solid var(--line);color:var(--dim);border-radius:7px;
 padding:4px 10px;cursor:pointer;font:inherit}
-dl{display:grid;grid-template-columns:130px 1fr;gap:6px 10px;margin:14px 0;font-size:13px}
-dt{color:var(--dim);font-size:11.5px;text-transform:uppercase;letter-spacing:.4px;padding-top:2px}
+dl{display:grid;grid-template-columns:132px 1fr;gap:7px 10px;margin:14px 0;font-size:13px}
+dt{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.4px;padding-top:2px}
 dd{margin:0;font-family:ui-monospace,Menlo,monospace;word-break:break-all}
 .note{background:#191d27;border:1px solid var(--line);border-left:3px solid var(--acc);
 border-radius:7px;padding:9px 12px;font-size:12.5px;color:var(--dim);margin:12px 0}
@@ -64,60 +107,43 @@ details{margin:12px 0}
 summary{cursor:pointer;color:var(--acc);font-size:12.5px}
 pre{background:#0a0c10;border:1px solid var(--line);border-radius:8px;padding:11px;
 overflow-x:auto;font-size:11.5px;margin:9px 0 0;color:#cdd3de}
-h3{font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.6px;
-margin:20px 0 8px;font-weight:600}
 .copy{background:none;border:1px solid var(--line);color:var(--acc);border-radius:5px;
 padding:1px 7px;cursor:pointer;font-size:11px;margin-left:6px}
-footer{color:var(--dim);font-size:11px;padding:16px;border-top:1px solid var(--line);margin-top:20px}
+.empty{color:var(--dim);padding:18px;text-align:center}
+footer{color:var(--dim);font-size:11px;padding:16px;border-top:1px solid var(--line);margin-top:22px}
 .err{color:var(--bad)}
-@media(max-width:620px){dl{grid-template-columns:1fr}dt{padding-top:8px}}
+@media(max-width:620px){dl{grid-template-columns:1fr}dt{padding-top:8px}
+ .kpis{grid-template-columns:repeat(auto-fit,minmax(92px,1fr))}}
 </style>
 </head>
 <body>
 <header>
-  <div class="row">
-    <h1>Farm-loop ledger</h1>
-    <span class="dim" id="hdr">–</span>
-    <span class="dim" id="upd">–</span>
-  </div>
+  <h1 id="title">Farm-loop ledger</h1>
+  <span class="dim" id="hdr">–</span>
+  <span class="dim" id="upd">–</span>
 </header>
 <main>
-  <div class="kpis" id="kpis"></div>
   <div class="tabs" id="wins">
-    <span class="dim" style="align-self:center;margin-right:2px">window</span>
+    <span class="dim">window</span>
     <button class="tab" data-w="1h">last 1h</button>
     <button class="tab" data-w="6h">6h</button>
     <button class="tab on" data-w="24h">24h</button>
     <button class="tab" data-w="all">all</button>
   </div>
-  <div class="tabs">
-    <button class="tab on" data-v="denials">Denials <b id="n-den">0</b></button>
-    <button class="tab" data-v="opens">Opens <b id="n-ops">0</b></button>
-    <button class="tab" data-v="all">All attempts <b id="n-all">0</b></button>
-  </div>
-  <div class="card"><table id="tbl">
-    <thead><tr id="thead"></tr></thead>
-    <tbody></tbody>
-  </table></div>
+  <div id="view"></div>
 </main>
 <div id="scrim"></div>
 <aside id="drawer" aria-hidden="true"></aside>
-<footer>All times UTC · auto-refresh 8s · the ledger stores the server's status/code, not its
-response body or message text</footer>
+<footer>All times UTC · auto-refresh 8s · click a wallet for its detail, a row for the raw record ·
+the ledger stores the server's status/code, not its response body or message text</footer>
 <script>
 const RAW="https://raw.githubusercontent.com/blackops-arch/gocollect-dashboard/data/ledger.json";
 const $=s=>document.querySelector(s);
-let DATA=null, VIEW="denials", WIN="24h", SORT={denials:["at",-1],opens:["at",-1],all:["at",-1]}, OPEN=null;
 const WIN_MS={"1h":3600e3,"6h":6*3600e3,"24h":24*3600e3,"all":Infinity};
-/* The ledger is cumulative, so an all-time reason count looks like an ongoing
-   problem long after it stopped. Everything below is scoped to a time window. */
-function winRows(){
-  if(WIN==="all") return DATA.attempts;
-  const cut=Date.now()-WIN_MS[WIN];
-  return DATA.attempts.filter(a=>Date.parse(a.at)>=cut);
-}
+let DATA=null, WIN="24h", PICK=null, SUB="denials", OPEN=null,
+    SORT={denials:["at",-1],opens:["at",-1],all:["at",-1]};
 
-/* ---- derived fields, exactly per spec ---- */
+/* ---------- derived fields (per spec) ---------- */
 const outcome=a=>a.status===200?"success":"denied";
 const reason=a=>a.code?a.code:(a.status===0?"transport":"unknown");
 const side=a=>a.status===0?"client":(a.status>=400?"server":"—");
@@ -128,81 +154,159 @@ const addr=w=>(DATA&&DATA.wallets&&DATA.wallets[String(w)]||{}).addr||"—";
 const roll=u=>u==null?"—":Number(u).toFixed(5);
 const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const hhmmss=at=>(at||"").slice(11,19);
+const dayof=at=>(at||"").slice(0,10);
 const scls=s=>s===200?"s200":s===0?"s0":s>=500?"s5xx":"s4xx";
-
+function ago(at){
+  if(!at) return "—";
+  const s=Math.max(0,(Date.now()-Date.parse(at))/1000);
+  if(s<60)return Math.floor(s)+"s ago";
+  if(s<3600)return Math.floor(s/60)+"m ago";
+  if(s<86400)return Math.floor(s/3600)+"h ago";
+  return Math.floor(s/86400)+"d ago";
+}
+function winRows(){
+  if(WIN==="all") return DATA.attempts;
+  const cut=Date.now()-WIN_MS[WIN];
+  return DATA.attempts.filter(a=>Date.parse(a.at)>=cut);
+}
+function walletIds(){
+  const s=new Set(Object.keys(DATA.wallets||{}).map(Number));
+  for(const a of DATA.attempts) s.add(a.wallet);
+  return [...s].filter(n=>!isNaN(n)).sort((a,b)=>a-b);
+}
+function stats(list){
+  const denied=list.filter(a=>outcome(a)==="denied");
+  const acc=list.filter(a=>outcome(a)==="success");
+  const draws=acc.filter(a=>a.tier&&a.tier!=="empty");
+  return {n:list.length, denied:denied.length, acc:acc.length, draws:draws.length,
+          tooFast:denied.filter(a=>reason(a)==="too_fast").length};
+}
 function sameReasonToday(a){
-  const day=(a.at||"").slice(0,10), r=reason(a);
-  let n=0;
-  for(const b of DATA.attempts)
-    if((b.at||"").slice(0,10)===day && outcome(b)==="denied" && reason(b)===r) n++;
-  return n;
+  const d=dayof(a.at), r=reason(a);
+  return DATA.attempts.filter(b=>dayof(b.at)===d && outcome(b)==="denied" && reason(b)===r).length;
 }
-function lastN(w,n){
-  return DATA.attempts.filter(a=>a.wallet===w).slice(-n).reverse();
+function lastN(w,n){ return DATA.attempts.filter(a=>a.wallet===w).slice(-n).reverse(); }
+
+/* ---------- view 1: wallet cards ---------- */
+function cardsView(){
+  const A=winRows(), ids=walletIds();
+  const t=stats(A);
+  const winLabel={"1h":"last hour","6h":"last 6h","24h":"last 24h","all":"all time"}[WIN];
+  $("#title").textContent="Farm-loop ledger";
+  $("#hdr").textContent=winLabel+" · "+ids.length+" wallets · "+A.length+" attempts · "+
+    (A.length?dayof(A[0].at)+" → "+dayof(A[A.length-1].at):"no attempts");
+  const tfCol=t.tooFast===0?"var(--ok)":"var(--warn)";
+  const kpis=
+    '<div class="kpis">'
+    +'<div class="kpi"><div class="v">'+t.n+'</div><div class="l">attempts</div></div>'
+    +'<div class="kpi"><div class="v">'+t.acc+'</div><div class="l">accepted</div></div>'
+    +'<div class="kpi"><div class="v">'+t.denied+'</div><div class="l">denied</div></div>'
+    +'<div class="kpi"><div class="v">'+t.draws+'</div><div class="l">draws</div></div>'
+    +'<div class="kpi"><div class="v" style="color:'+tfCol+'">'+t.tooFast+'</div><div class="l">too_fast</div></div>'
+    +'</div>';
+  const cards=ids.map(w=>{
+    const mine=A.filter(a=>a.wallet===w), s=stats(mine);
+    const okPct=s.n?100*s.acc/s.n:0, denPct=s.n?100-s.acc/s.n*100:0;
+    const last=mine.length?mine[mine.length-1].at:null;
+    const tf=s.tooFast===0?'<span class="pill zero">too_fast 0</span>'
+                          :'<span class="pill den">too_fast '+s.tooFast+'</span>';
+    return '<div class="wcard" data-w="'+w+'">'
+      +'<div class="top"><span class="wname">'+wlabel(w)+'</span>'
+      +'<span class="waddr">'+esc(addr(w))+'</span></div>'
+      +'<div class="wbig">'+s.n+'<span>attempts</span></div>'
+      +'<div class="split"><i class="si-ok" style="width:'+okPct+'%"></i>'
+      +'<i class="si-den" style="width:'+denPct+'%"></i></div>'
+      +'<div class="wpills"><span class="pill ok">accepted '+s.acc+'</span>'
+      +'<span class="pill den">denied '+s.denied+'</span>'
+      +(s.draws?'<span class="pill draw">draws '+s.draws+'</span>':'')
+      +tf+'</div>'
+      +'<div class="wfoot"><span>'+ago(last)+'</span><span class="dim">view →</span></div>'
+      +'</div>';
+  }).join("");
+  $("#view").innerHTML=kpis+'<div class="wgrid">'+cards+'</div>';
+  document.querySelectorAll(".wcard").forEach(c=>c.onclick=()=>{
+    PICK=+c.dataset.w; OPEN=null; SUB="denials"; render();
+  });
 }
 
-/* ---- rows ---- */
-function rows(){
-  let r=winRows().slice();
-  if(VIEW==="denials") r=r.filter(a=>outcome(a)==="denied");
-  if(VIEW==="opens")   r=r.filter(a=>outcome(a)==="success"&&a.tier);
-  const [k,dir]=SORT[VIEW];
-  r.sort((a,b)=>{
+/* ---------- view 2: one wallet ---------- */
+function walletView(){
+  const w=PICK, A=winRows().filter(a=>a.wallet===w), s=stats(A);
+  const winLabel={"1h":"last hour","6h":"last 6h","24h":"last 24h","all":"all time"}[WIN];
+  $("#title").textContent=wlabel(w);
+  $("#hdr").textContent=winLabel+" · "+s.n+" attempts";
+  const tfCol=s.tooFast===0?"var(--ok)":"var(--warn)";
+  let sub=A.slice();
+  if(SUB==="denials") sub=sub.filter(a=>outcome(a)==="denied");
+  if(SUB==="opens")   sub=sub.filter(a=>outcome(a)==="success"&&a.tier);
+  const [k,dir]=SORT[SUB];
+  sub.sort((a,b)=>{
     let x,y;
     if(k==="at"){x=a.at||"";y=b.at||"";}
-    else if(k==="wallet"){x=a.wallet;y=b.wallet;}
-    else if(k==="reason"){x=reason(a);y=reason(b);}
     else if(k==="status"){x=a.status;y=b.status;}
+    else if(k==="reason"){x=reason(a);y=reason(b);}
+    else if(k==="side"){x=side(a);y=side(b);}
     else if(k==="tier"){x=a.tier||"";y=b.tier||"";}
-    else if(k==="drawn_tier"){x=a.drawn_tier||"";y=b.drawn_tier||"";}
     else if(k==="u"){x=a.u==null?-1:a.u;y=b.u==null?-1:b.u;}
     else if(k==="open_id"){x=a.open_id==null?-1:a.open_id;y=b.open_id==null?-1:b.open_id;}
     if(x<y)return -dir; if(x>y)return dir; return 0;
   });
-  return r;
-}
-const COLS={
-  denials:[["at","time"],["wallet","wallet"],["reason","reason"],["message","message"]],
-  opens:[["at","time"],["wallet","wallet"],["tier","tier"],["drawn_tier","drawn"],["u","roll"],["open_id","mint"]],
-  all:[["at","time"],["wallet","wallet"],["status","status"],["reason","reason"],["side","side"],["tier","tier"]]
-};
-function head(){
-  const [k,dir]=SORT[VIEW];
-  $("#thead").innerHTML=COLS[VIEW].map(([f,l])=>
+  const COLSN={denials:[["at","time"],["status","status"],["reason","reason"],["side","side"],["message","message"]],
+               opens:[["at","time"],["tier","tier"],["drawn_tier","drawn"],["u","roll"],["open_id","mint"]],
+               all:[["at","time"],["status","status"],["reason","reason"],["side","side"],["tier","tier"],["u","roll"]]};
+  const thead=COLSN[SUB].map(([f,l])=>
     '<th data-f="'+f+'" class="'+(f===k?"sel":"")+'">'+l+
     (f===k?' <span class="ar">'+(dir<0?"▼":"▲")+'</span>':'')+'</th>').join("");
-  $("#thead").querySelectorAll("th").forEach(th=>th.onclick=()=>{
+  const body=sub.length?sub.map(a=>{
+    const i=DATA.attempts.indexOf(a), out=outcome(a);
+    if(SUB==="denials") return '<tr data-i="'+i+'"><td>'+hhmmss(a.at)+'</td><td class="'+scls(a.status)+'">'
+      +a.status+'</td><td><span class="badge b-'+side(a)+'">'+esc(reason(a))+'</span></td><td>'+side(a)
+      +'</td><td>'+esc(message(a))+'</td></tr>';
+    if(SUB==="opens") return '<tr data-i="'+i+'"><td>'+hhmmss(a.at)+'</td><td class="t-'+esc(a.tier)
+      +'">'+esc(a.tier)+'</td><td class="t-'+esc(a.drawn_tier||"empty")+'">'+esc(a.drawn_tier||"—")
+      +'</td><td>'+roll(a.u)+'</td><td>'+(a.open_id==null?"—":a.open_id)+'</td></tr>';
+    return '<tr data-i="'+i+'"><td>'+hhmmss(a.at)+'</td><td class="'+scls(a.status)+'">'+a.status+'</td><td>'
+      +(out==="denied"?'<span class="badge b-'+side(a)+'">'+esc(reason(a))+'</span>':'—')+'</td><td>'
+      +(out==="denied"?side(a):"—")+'</td><td class="t-'+esc(a.tier||"empty")+'">'+esc(a.tier||"—")
+      +'</td><td>'+roll(a.u)+'</td></tr>';
+  }).join(""):'<tr><td colspan="6" class="empty">nothing in this window</td></tr>';
+
+  const byR={}; A.filter(a=>outcome(a)==="denied").forEach(a=>{const r=reason(a);byR[r]=(byR[r]||0)+1;});
+  const rcards=Object.entries(byR).sort((a,b)=>b[1]-a[1]).map(([r,n])=>
+    '<div class="rcard"><span class="rn">'+esc(r)+'</span><span class="n">'+n+'</span></div>').join("")
+    ||'<div class="rcard"><span class="rn">no denials in this window</span><span class="n">0</span></div>';
+
+  $("#view").innerHTML=
+    '<div class="whead"><button class="back" id="back">← all wallets</button>'
+    +'<span class="nm">'+wlabel(w)+'</span><span class="waddr">'+esc(addr(w))+'</span></div>'
+    +'<div class="kpis">'
+    +'<div class="kpi"><div class="v">'+s.n+'</div><div class="l">attempts</div></div>'
+    +'<div class="kpi"><div class="v">'+s.acc+'</div><div class="l">accepted</div></div>'
+    +'<div class="kpi"><div class="v">'+s.denied+'</div><div class="l">denied</div></div>'
+    +'<div class="kpi"><div class="v">'+s.draws+'</div><div class="l">draws</div></div>'
+    +'<div class="kpi"><div class="v" style="color:'+tfCol+'">'+s.tooFast+'</div><div class="l">too_fast</div></div>'
+    +'</div>'
+    +'<h2>denials by reason</h2><div class="reasons">'+rcards+'</div>'
+    +'<div class="tabs">'
+    +'<button class="tab'+(SUB==="denials"?" on":"")+'" data-s="denials">Denials</button>'
+    +'<button class="tab'+(SUB==="opens"?" on":"")+'" data-s="opens">Opens</button>'
+    +'<button class="tab'+(SUB==="all"?" on":"")+'" data-s="all">All</button>'
+    +'</div>'
+    +'<div class="card"><div class="tscroll"><table><thead><tr>'+thead+'</tr></thead>'
+    +'<tbody>'+body+'</tbody></table></div></div>';
+
+  $("#back").onclick=()=>{PICK=null;OPEN=null;render();};
+  document.querySelectorAll(".tab[data-s]").forEach(t=>t.onclick=()=>{SUB=t.dataset.s;render();});
+  document.querySelectorAll("thead th").forEach(th=>th.onclick=()=>{
     const f=th.dataset.f;
-    SORT[VIEW]=[f, (SORT[VIEW][0]===f? -SORT[VIEW][1] : (f==="at"?-1:1))];
+    SORT[SUB]=[f,(SORT[SUB][0]===f?-SORT[SUB][1]:(f==="at"?-1:1))];
     render();
   });
-}
-function body(){
-  const rs=rows();
-  if(!rs.length){$("#tbl tbody").innerHTML='<tr><td class="dim" style="padding:14px">nothing here</td></tr>';return;}
-  $("#tbl tbody").innerHTML=rs.map(a=>{
-    const i=DATA.attempts.indexOf(a);
-    if(VIEW==="denials")
-      return '<tr class="dr" data-i="'+i+'"><td>'+hhmmss(a.at)+'</td><td>'+wlabel(a.wallet)
-        +'</td><td><span class="badge b-'+side(a)+'">'+esc(reason(a))+'</span></td>'
-        +'<td>'+esc(message(a))+'</td></tr>';
-    if(VIEW==="opens")
-      return '<tr class="dr" data-i="'+i+'"><td>'+hhmmss(a.at)+'</td><td>'+wlabel(a.wallet)
-        +'</td><td class="t-'+esc(a.tier)+'">'+esc(a.tier)+'</td><td class="t-'
-        +esc(a.drawn_tier||"empty")+'">'+esc(a.drawn_tier||"—")+'</td><td>'+roll(a.u)
-        +'</td><td>'+(a.open_id==null?"—":a.open_id)+'</td></tr>';
-    const out=outcome(a);
-    return '<tr class="dr" data-i="'+i+'"><td>'+hhmmss(a.at)+'</td><td>'+wlabel(a.wallet)
-      +'</td><td class="'+scls(a.status)+'">'+a.status+'</td><td>'
-      +(out==="denied"?'<span class="badge b-'+side(a)+'">'+esc(reason(a))+'</span>':'—')
-      +'</td><td>'+(out==="denied"?side(a):"—")+'</td><td class="t-'+esc(a.tier||"empty")+'">'
-      +esc(a.tier||"—")+'</td></tr>';
-  }).join("");
-  $("#tbl tbody").querySelectorAll("tr.dr").forEach(tr=>
+  document.querySelectorAll("tbody tr[data-i]").forEach(tr=>
     tr.onclick=()=>detail(DATA.attempts[+tr.dataset.i]));
 }
 
-/* ---- detail view (3c) ---- */
+/* ---------- attempt detail (drawer) ---------- */
 function detail(a){
   if(!a) return;
   OPEN=a.at+"|"+a.wallet+"|"+a.crate_id;
@@ -212,7 +316,7 @@ function detail(a){
     +'</td><td class="t-'+esc(b.tier||"empty")+'">'+esc(b.tier||"—")+'</td><td>'
     +esc(b.code||"—")+'</td></tr>').join("");
   $("#drawer").innerHTML=
-    '<div class="dhead"><h2>'+(out==="denied"?"Denied · "+esc(r):"Accepted · "+esc(a.tier||""))+'</h2>'
+    '<div class="dhead"><h3>'+(out==="denied"?"Denied · "+esc(r):"Accepted · "+esc(a.tier||""))+'</h3>'
     +'<button class="x" id="xclose">close</button></div>'
     +'<span class="badge b-'+s+'">'+s+'-side</span>'
     +'<dl>'
@@ -232,7 +336,7 @@ function detail(a){
     +'message text — <code>farm_loop</code> never stored them. The raw record below is everything '
     +'that exists for this attempt.</div>'
     +'<details><summary>Raw ledger record</summary><pre>'+esc(JSON.stringify(a,null,2))+'</pre></details>'
-    +'<h3>Last 10 attempts on this wallet</h3>'
+    +'<h2 style="margin-top:18px">Last 10 attempts on this wallet</h2>'
     +'<div class="card"><table><thead><tr><th>time</th><th>status</th><th>tier</th><th>code</th></tr></thead>'
     +'<tbody>'+rows10+'</tbody></table></div>';
   $("#drawer").classList.add("open"); $("#drawer").setAttribute("aria-hidden","false");
@@ -248,49 +352,25 @@ function closeDetail(){OPEN=null;$("#drawer").classList.remove("open");
 $("#scrim").onclick=closeDetail;
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeDetail();});
 
-/* ---- chrome ---- */
+/* ---------- chrome ---------- */
 function render(){
-  const A=winRows();
-  const st=DATA.stats||{};
-  const dr=A.filter(a=>outcome(a)==="denied");
-  const acc=A.filter(a=>outcome(a)==="success");
-  const draws=acc.filter(a=>a.tier&&a.tier!=="empty").length;
-  const tf=dr.filter(a=>reason(a)==="too_fast").length;
-  const winLabel={ "1h":"last hour","6h":"last 6h","24h":"last 24h","all":"all time" }[WIN];
-  const span=A.length?A[0].at.slice(0,16)+" → "+A[A.length-1].at.slice(0,16):"no attempts in window";
-  $("#hdr").textContent=winLabel+" · "+A.length+" attempts · "+span;
-  $("#upd").textContent="updated "+new Date().toLocaleTimeString();
-  $("#n-den").textContent=dr.length;
-  $("#n-ops").textContent=acc.filter(a=>a.tier).length;
-  $("#n-all").textContent=A.length;
-  const byR={};
-  dr.forEach(a=>{const k=reason(a); byR[k]=(byR[k]||0)+1;});
-  const top=Object.entries(byR).sort((a,b)=>b[1]-a[1]).slice(0,4)
-    .map(([k,v])=>'<div class="kpi"><div class="v">'+v+'</div><div class="l">'+esc(k)+'</div></div>').join("");
-  const tfc=tf===0?"var(--ok)":"var(--warn)";
-  $("#kpis").innerHTML=
-    '<div class="kpi"><div class="v">'+A.length+'</div><div class="l">attempts</div></div>'
-   +'<div class="kpi"><div class="v">'+dr.length+'</div><div class="l">denied</div></div>'
-   +'<div class="kpi"><div class="v">'+acc.length+'</div><div class="l">accepted</div></div>'
-   +'<div class="kpi"><div class="v">'+draws+'</div><div class="l">draws (non-empty)</div></div>'
-   +'<div class="kpi"><div class="v" style="color:'+tfc+'">'+tf+'</div><div class="l">too_fast (429)</div></div>'
-   +top;
+  if(!DATA) return;
   document.querySelectorAll("#wins .tab").forEach(t=>t.classList.toggle("on",t.dataset.w===WIN));
-  document.querySelectorAll(".tab[data-v]").forEach(t=>
-    t.classList.toggle("on",t.dataset.v===VIEW));
-  head(); body();
+  if(PICK==null) cardsView(); else walletView();
+  if(OPEN){
+    const [at,w,c]=OPEN.split("|");
+    const a=DATA.attempts.find(x=>x.at===at&&String(x.wallet)===w&&x.crate_id===c);
+    if(a) detail(a);
+  }
 }
 document.querySelectorAll("#wins .tab").forEach(t=>t.onclick=()=>{WIN=t.dataset.w;render();});
-document.querySelectorAll(".tab[data-v]").forEach(t=>t.onclick=()=>{VIEW=t.dataset.v;render();});
-
+$("#upd").textContent="loading…";
 async function tick(){
   try{
     const r=await fetch(RAW+"?t="+Date.now(),{cache:"no-store"});
     DATA=await r.json();
+    $("#upd").textContent="updated "+new Date().toLocaleTimeString();
     render();
-    if(OPEN){const [at,w,c]=OPEN.split("|");
-      const a=DATA.attempts.find(x=>x.at===at&&String(x.wallet)===w&&x.crate_id===c);
-      if(a)detail(a);}
   }catch(e){$("#upd").innerHTML='<span class="err">feed unreachable</span>';}
 }
 tick();setInterval(tick,8000);
