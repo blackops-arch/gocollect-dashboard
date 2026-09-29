@@ -202,6 +202,10 @@ const endpoint=a=>"POST /v1/crates/"+(a.crate_id||"")+"/open";
 const message=a=>"HTTP "+a.status+" · POST /v1/crates/"+(a.crate_id||"")+"/open";
 const glabel=w=>"G"+w;
 const addr=w=>(DATA&&DATA.wallets&&DATA.wallets[String(w)]||{}).addr||"—";
+// Remaining daily opens, from the server's own opensLeft for the wallet live now.
+// Undefined for a wallet with no logged me-line yet.
+const leftOf=w=>(DATA&&DATA.opens_left||{})[String(w)];
+const totalLeft=()=>Object.values((DATA&&DATA.opens_left)||{}).reduce((s,n)=>s+Number(n||0),0);
 const roll=u=>u==null?"—":Number(u).toFixed(5);
 const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const hhmmss=at=>(at||"").slice(11,19);
@@ -261,10 +265,13 @@ function cardsView(){
     (A.length?dayof(A[0].at)+" → "+dayof(A[A.length-1].at):"no attempts");
   const tfCol=t.tooFast===0?"var(--ok)":"var(--warn)";
   const nCards=(DATA.cards||[]).length, nVal=(DATA.cards||[]).reduce((s,c)=>s+(c.valueUsd||0),0);
+  const nLeft=totalLeft(), nLeftW=Object.keys((DATA&&DATA.opens_left)||{}).length;
+  const leftCol=nLeft===0?"var(--dim)":"var(--ok)";
   const kpis='<div class="kpis">'
     +'<div class="kpi"><div class="v">'+t.n+'</div><div class="l">attempts</div></div>'
     +'<div class="kpi"><div class="v">'+t.acc+'</div><div class="l">accepted</div></div>'
     +'<div class="kpi"><div class="v">'+t.denied+'</div><div class="l">denied</div></div>'
+    +'<div class="kpi"><div class="v" style="color:'+leftCol+'">'+nLeft+'</div><div class="l">opens left</div></div>'
     +'<div class="kpi"><div class="v">'+nCards+'</div><div class="l">cards</div></div>'
     +'<div class="kpi"><div class="v">'+money(nVal)+'</div><div class="l">cards value</div></div>'
     +'<div class="kpi"><div class="v" style="color:'+tfCol+'">'+t.tooFast+'</div><div class="l">too_fast</div></div>'
@@ -276,6 +283,9 @@ function cardsView(){
     const last=mine.length?mine[mine.length-1].at:null;
     const tf=s.tooFast===0?'<span class="pill zero">too_fast 0</span>'
                           :'<span class="pill den">too_fast '+s.tooFast+'</span>';
+    const lf=leftOf(w);
+    const lp=lf==null?'<span class="pill">left —</span>'
+                      :'<span class="pill'+(lf?'':' zero')+'">left '+lf+'</span>';
     const mini=myC.length?myC.slice(0,3).map(c=>
       '<div class="minicard">'+(c.image?'<img src="'+esc(c.image)+'" loading="lazy" alt="">':'')
       +'<span class="t-'+esc(c.tier||"empty")+'">'+esc(c.name||c.tier||"card")+'</span></div>').join("")
@@ -290,7 +300,7 @@ function cardsView(){
       +'<div class="wpills"><span class="pill ok">accepted '+s.acc+'</span>'
       +'<span class="pill den">denied '+s.denied+'</span>'
       +'<span class="pill'+(myC.length?' draw':'')+'">cards '+myC.length+'</span>'
-      +tf+'</div>'
+      +lp+tf+'</div>'
       +(mini?'<div class="minicards">'+mini+'</div>':'')
       +'<div class="wfoot"><span>'+ago(last)+'</span><span class="dim">view →</span></div>'
       +'</div>';
@@ -359,6 +369,8 @@ function walletView(){
   $("#title").textContent=glabel(w);
   $("#hdr").textContent=WINLABEL[WIN]+" · "+s.n+" attempts · "+myC.length+" card(s)";
   const tfCol=s.tooFast===0?"var(--ok)":"var(--warn)";
+  const wLeft=leftOf(w);
+  const leftCol=wLeft==null?"var(--dim)":(wLeft?"var(--ok)":"var(--bad)");
   let sub=A.slice();
   if(SUB==="denials") sub=sub.filter(a=>outcome(a)==="denied");
   if(SUB==="opens")   sub=sub.filter(a=>outcome(a)==="success"&&a.tier);
@@ -415,6 +427,7 @@ function walletView(){
     +'<div class="kpi"><div class="v">'+s.acc+'</div><div class="l">accepted</div></div>'
     +'<div class="kpi"><div class="v">'+s.denied+'</div><div class="l">denied</div></div>'
     +'<div class="kpi"><div class="v">'+myC.length+'</div><div class="l">cards</div></div>'
+    +'<div class="kpi"><div class="v" style="color:'+leftCol+'">'+(wLeft==null?"—":wLeft)+'</div><div class="l">opens left</div></div>'
     +'<div class="kpi"><div class="v" style="color:'+tfCol+'">'+s.tooFast+'</div><div class="l">too_fast</div></div>'
     +'</div>'
     +'<h2>cards pulled</h2><div class="cgrid">'+cgrid+'</div>'

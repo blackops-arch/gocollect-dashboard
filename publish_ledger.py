@@ -17,6 +17,8 @@ are kept in full -- the leak guard whitelists them explicitly.
 from __future__ import annotations
 
 import base64
+import calendar
+import datetime
 import json
 import os
 import re
@@ -35,6 +37,7 @@ SLOT_LOG = os.environ.get(
 REPO = os.environ.get("GC_DASH_REPO", "blackops-arch/gocollect-dashboard")
 BRANCH, PATH = "data", "ledger.json"
 MAX_ATTEMPTS = 4000          # keep the payload bounded as the ledger grows
+DAILY_LIMIT = 25             # server-side opens per wallet per UTC day
 PLAYER = "https://gocollect.fun/v1/players/%s"
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
@@ -110,6 +113,82 @@ def review_from_logs(slots: list) -> list:
             out.append({"wallet": s, "status": "denied", "raw": d})
         for w in (rv.get("waiting") or []):
             out.append({"wallet": s, "status": "pending", "raw": w})
+    return out
+
+
+def opens_left_from_logs(slots: list) -> dict:
+    """Remaining daily opens per slot, straight from the server's own `me opensLeft=`.
+
+    The ledger is keyed by SLOT, and a slot outlives the wallet that fills it: after a
+    rotation the slot's opens span two wallets, so `25 - opens_in_ledger` undercounts
+    (it reported 0 left for every slot while the server still had 5-9). The slot log's
+    `me opensLeft=` line is the server's own number for the wallet live right now, so it
+    is correct across rotations. Integers only -- nothing address-shaped leaves here.
+    """
+    out = {}
+    for s in slots:
+        path = SLOT_LOG % s
+        if not os.path.exists(path):
+            continue
+        last = None
+        try:
+            with open(path, errors="replace") as fh:
+                for line in fh:
+                    m = re.search(r"^me\s+opensLeft=(\d+)", line)
+                    if m:
+                        last = int(m.group(1))
+        except OSError:
+            continue
+        if last is not None:
+            out[str(s)] = last
+    return out
+
+
+def opens_left_for_slots(entries: list, raw: list) -> dict:
+    """Remaining daily opens per slot, correct across a rotation.
+
+    The ledger is keyed by SLOT, and a slot outlives the wallet filling it: after a
+    rotation one slot's rows span two wallets, so `25 - opens_in_ledger` undercounts
+    (it read 0 left everywhere while the server still had 5-9). The slot log's
+    `me opensLeft=` line is the server's own number, but it is printed once per run,
+    so it goes stale inside a long run (G1 read 25 with 20 already spent).
+
+    So count the accepted opens made by the wallet live NOW: opens after the current
+    keyfile was generated (auto-rotation slots) and after 00:00 UTC. Integers only.
+    """
+    day = datetime.datetime.utcnow().strftime("%Y-%m-%d")
+    gen: dict = {}
+    for i, entry in enumerate(entries):
+        if not isinstance(entry, dict):
+            continue
+        kf = entry.get("keyfile") or ""
+        if "auto-rotation" in kf and os.path.exists(kf):
+            gen[i] = os.path.getmtime(kf)
+
+    used: dict = {}
+    for r in raw:
+        w = r.get("wallet")
+        if not isinstance(w, int) or r.get("status") != 200:
+            continue
+        at = r.get("at") or ""
+        if at[:10] != day:
+            continue
+        g = gen.get(w)
+        if g is not None:
+            try:
+                if calendar.timegm(time.strptime(at, "%Y-%m-%dT%H:%M:%SZ")) < g:
+                    continue
+            except ValueError:
+                continue
+        used[w] = used.get(w, 0) + 1
+
+    out: dict = {}
+    active = {r.get("wallet") for r in raw if isinstance(r.get("wallet"), int)}
+    for i, entry in enumerate(entries):
+        # Only slots that actually farm: wallets.json also holds retired slots
+        # (G11-G20) with no ledger rows, which would otherwise claim "left 25".
+        if isinstance(entry, dict) and entry.get("address") and i in active:
+            out[str(i)] = max(0, DAILY_LIMIT - used.get(i, 0))
     return out
 
 
@@ -192,6 +271,8 @@ def main() -> int:
     # --- cards: denied / still-pending, from the slots' review blocks ---
     cards += review_from_logs(sorted(addr_by_idx))
 
+    opens_left = opens_left_for_slots(entries, raw)
+
     derived = [derive(r) for r in raw]
     denials = [a for a in derived if a["outcome"] == "denied"]
     by_reason: dict = {}
@@ -212,6 +293,7 @@ def main() -> int:
         "attempts": raw,
         "cards": cards,
         "pull_stats": pull_stats,
+        "opens_left": opens_left,
         "stats": {
             "attempts": len(raw), "denials": len(denials),
             "successes": len(raw) - len(denials),
@@ -220,6 +302,8 @@ def main() -> int:
             "by_reason": by_reason,
             "cards": len(cards), "cards_by_tier": by_tier, "cards_by_status": by_status,
             "cards_value_usd": sum(c.get("valueUsd") or 0 for c in cards),
+            "opens_left_total": sum(opens_left.values()),
+            "opens_left_wallets": len(opens_left),
             "first": raw[0]["at"] if raw else None,
             "last": raw[-1]["at"] if raw else None,
         },
