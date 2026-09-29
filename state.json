@@ -1,12 +1,12 @@
 {
  "cards24": 1322,
- "cards24_usd": 48633,
+ "cards24_usd": 48675,
  "day_utc": "2026-09-29",
  "ev_usd": 0.29,
  "expected_cards_left": 0.04,
- "generated_ts": 1790668582.4182293,
+ "generated_ts": 1790668706.4240503,
  "limit": 25,
- "now": 1790668582.4166324,
+ "now": 1790668706.4228745,
  "odds": {
   "common": 0.005249176701329386,
   "grail": 3.831515840386413e-05,
@@ -191,12 +191,12 @@
    "wallet": 6
   }
  ],
- "slots": 2,
- "sol_usd": 119.5401723908851,
+ "slots": 4,
+ "sol_usd": 119.4873931068979,
  "totals": {
   "cards": 0,
   "left": 5,
-  "opened": 45
+  "opened": 95
  },
  "wallets": [
   {
@@ -207,6 +207,26 @@
    "limit": 25,
    "opened": 21,
    "pity": 21,
+   "state": "walking"
+  },
+  {
+   "cards": 0,
+   "idx": 6,
+   "last_ts": 1790667433.0,
+   "left": 0,
+   "limit": 25,
+   "opened": 25,
+   "pity": 50,
+   "state": "walking"
+  },
+  {
+   "cards": 0,
+   "idx": 7,
+   "last_ts": 1790667531.0,
+   "left": 0,
+   "limit": 25,
+   "opened": 25,
+   "pity": 50,
    "state": "walking"
   },
   {
