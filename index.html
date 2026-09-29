@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Farm-loop ledger · wallets</title>
+<title>GoCollect · fleet ledger</title>
 <style>
 :root{
 --pk-red:#ee1515;--pk-red2:#ff4d4d;--pk-yellow:#ffcb05;--pk-blue:#3b4cca;--pk-blue2:#6b7cff;
@@ -167,7 +167,7 @@ footer{color:var(--dim);font-size:11px;padding:16px;border-top:1px solid var(--l
 <div class="topbar"></div>
 <header>
   <span class="pball" aria-hidden="true"></span>
-  <h1 id="title">Farm-loop ledger</h1>
+  <h1 id="title">GoCollect fleet ledger</h1>
   <span class="dim" id="hdr">–</span>
   <span class="dim" id="upd">–</span>
   <div class="wfilter" id="wins" role="group" aria-label="time window">
@@ -256,7 +256,7 @@ function nav(){
 /* ---------- view: wallet cards ---------- */
 function cardsView(){
   const A=winRows(), ids=walletIds(), t=stats(A);
-  $("#title").textContent="Farm-loop ledger";
+  $("#title").textContent="GoCollect fleet ledger";
   $("#hdr").textContent=WINLABEL[WIN]+" · "+ids.length+" wallets · "+A.length+" attempts · "+
     (A.length?dayof(A[0].at)+" → "+dayof(A[A.length-1].at):"no attempts");
   const tfCol=t.tooFast===0?"var(--ok)":"var(--warn)";
