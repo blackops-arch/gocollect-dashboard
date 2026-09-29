@@ -1,12 +1,12 @@
 {
- "cards24": 1321,
- "cards24_usd": 48527,
+ "cards24": 1319,
+ "cards24_usd": 48518,
  "day_utc": "2026-09-29",
  "ev_usd": 0.29,
- "expected_cards_left": 0.1,
- "generated_ts": 1790667943.4698706,
+ "expected_cards_left": 0.07,
+ "generated_ts": 1790668069.129405,
  "limit": 25,
- "now": 1790667943.468939,
+ "now": 1790668069.1268184,
  "odds": {
   "common": 0.005249176701329386,
   "grail": 3.831515840386413e-05,
@@ -15,6 +15,27 @@
  },
  "odds_total": 0.008327161093106472,
  "recent": [
+  {
+   "at": "2026-09-29T07:47:42Z",
+   "pity": 50,
+   "tier": "empty",
+   "u": 0.23481048722665476,
+   "wallet": 5
+  },
+  {
+   "at": "2026-09-29T07:45:49Z",
+   "pity": 21,
+   "tier": "empty",
+   "u": 0.06475662472008636,
+   "wallet": 1
+  },
+  {
+   "at": "2026-09-29T07:45:42Z",
+   "pity": 47,
+   "tier": "empty",
+   "u": 0.026948168162952868,
+   "wallet": 9
+  },
   {
    "at": "2026-09-29T07:44:39Z",
    "pity": 20,
@@ -168,45 +189,24 @@
    "tier": "empty",
    "u": 0.4548559535373242,
    "wallet": 8
-  },
-  {
-   "at": "2026-09-29T06:44:04Z",
-   "pity": 46,
-   "tier": "empty",
-   "u": 0.2108290858609705,
-   "wallet": 5
-  },
-  {
-   "at": "2026-09-29T06:43:29Z",
-   "pity": 17,
-   "tier": "empty",
-   "u": 0.6845925394345334,
-   "wallet": 1
-  },
-  {
-   "at": "2026-09-29T06:43:06Z",
-   "pity": 46,
-   "tier": "empty",
-   "u": 0.3716802018961445,
-   "wallet": 4
   }
  ],
- "slots": 5,
- "sol_usd": 119.53191356127907,
+ "slots": 4,
+ "sol_usd": 119.5626356645823,
  "totals": {
   "cards": 0,
-  "left": 12,
-  "opened": 113
+  "left": 9,
+  "opened": 91
  },
  "wallets": [
   {
    "cards": 0,
    "idx": 1,
-   "last_ts": 1790667879.0,
-   "left": 5,
+   "last_ts": 1790667949.0,
+   "left": 4,
    "limit": 25,
-   "opened": 20,
-   "pity": 20,
+   "opened": 21,
+   "pity": 21,
    "state": "walking"
   },
   {
@@ -231,22 +231,12 @@
   },
   {
    "cards": 0,
-   "idx": 5,
-   "last_ts": 1790667758.0,
-   "left": 1,
-   "limit": 25,
-   "opened": 24,
-   "pity": 49,
-   "state": "walking"
-  },
-  {
-   "cards": 0,
    "idx": 9,
-   "last_ts": 1790667440.0,
-   "left": 3,
+   "last_ts": 1790667942.0,
+   "left": 2,
    "limit": 25,
-   "opened": 22,
-   "pity": 46,
+   "opened": 23,
+   "pity": 47,
    "state": "walking"
   }
  ]
