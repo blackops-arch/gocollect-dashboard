@@ -1,0 +1,6 @@
+state.json
+*.pyc
+__pycache__/
+*.log
+.env
+*.jsonl

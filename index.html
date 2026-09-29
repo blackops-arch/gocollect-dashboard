@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GoCollect · Fleet Dashboard</title>
+<style>
+:root{--bg:#0b0d11;--fg:#e6e9ef;--dim:#8b93a1;--ok:#4ade80;--warn:#fbbf24;
+--bad:#f87171;--card:#141821;--line:#232936;--acc:#60a5fa}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{padding:14px 20px;border-bottom:1px solid var(--line);display:flex;
+gap:18px;align-items:baseline;flex-wrap:wrap;position:sticky;top:0;
+background:rgba(11,13,17,.95);backdrop-filter:blur(6px);z-index:5}
+h1{font-size:16px;margin:0;font-weight:700;letter-spacing:-.2px}
+.dim{color:var(--dim);font-size:13px}
+main{padding:18px 20px 40px;max-width:1400px;margin:0 auto}
+.kpis{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:20px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.kpi .v{font-size:22px;font-weight:700;line-height:1.2}
+.kpi .v small{font-size:13px;font-weight:500;color:var(--dim)}
+.kpi .l{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.6px;margin-top:2px}
+.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(290px,1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
+.chead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
+.wid{font-family:ui-monospace,Menlo,monospace;font-weight:700;font-size:15px}
+.count{font-size:19px;font-weight:700}
+.count small{font-size:12px;font-weight:500;color:var(--dim)}
+.bar{height:6px;background:#252b37;border-radius:3px;overflow:hidden;margin:8px 0 10px}
+.bar>i{display:block;height:100%;background:var(--ok);transition:width .4s}
+.bar.full>i{background:var(--warn)}
+.pills{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.pill{font-size:11px;padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--dim);white-space:nowrap}
+.pill.live{color:var(--ok);border-color:#25503a}
+.pill.stall{color:var(--bad);border-color:#5a2a2a}
+.pill.pity{color:var(--acc);border-color:#1e3a5f}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{text-align:left;color:var(--dim);font-weight:600;font-size:11px;
+text-transform:uppercase;letter-spacing:.5px;padding:6px 8px;border-bottom:1px solid var(--line)}
+td{padding:6px 8px;border-bottom:1px solid #1a1f29;font-family:ui-monospace,Menlo,monospace}
+td.tier-empty{color:var(--dim)}
+td.tier-common{color:#9aa0a6}td.tier-uncommon{color:var(--ok)}
+td.tier-rare{color:var(--acc)}td.tier-grail{color:var(--warn);font-weight:700}
+h2{font-size:14px;margin:26px 0 10px;color:var(--dim)}
+footer{color:var(--dim);font-size:11.5px;padding:18px 20px;border-top:1px solid var(--line);margin-top:24px}
+.err{color:var(--bad)}
+</style>
+</head>
+<body>
+<header>
+  <h1>GoCollect · Fleet</h1>
+  <div class="dim" id="day">–</div>
+  <div class="dim" id="upd">–</div>
+  <div class="dim" id="snap">–</div>
+</header>
+<main>
+  <div class="kpis" id="kpis"></div>
+  <div class="grid" id="grid"></div>
+  <h2>Recent opens</h2>
+  <div class="card" style="padding:6px 10px">
+    <table id="recent">
+      <thead><tr><th>time (UTC)</th><th>wallet</th><th>tier</th><th>roll u</th><th>pity</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</main>
+<footer>
+  Live game data fetched from gocollect.fun · fleet snapshot from <code>state.json</code> ·
+  no keys, addresses or log content · quota resets 00:00 UTC (07:00 WIB)
+</footer>
+<script>
+const STATS="https://gocollect.fun/v1/stats";
+const STORE="https://gocollect.fun/v1/store";
+// Fleet snapshot lives on the `data` branch so publishing it never triggers a
+// Pages rebuild. raw.githubusercontent.com serves it with CORS `*`.
+const RAW_STATE="https://raw.githubusercontent.com/blackops-arch/gocollect-dashboard/data/state.json";
+const $=s=>document.querySelector(s);
+const fmt=(n,d)=>n==null?"–":Number(n).toLocaleString(undefined,
+  {minimumFractionDigits:d||0,maximumFractionDigits:d||0});
+const ago=ts=>{if(!ts)return"–";const s=Math.max(0,Date.now()/1000-ts);
+  if(s<60)return Math.floor(s)+"s ago";if(s<3600)return Math.floor(s/60)+"m ago";
+  return Math.floor(s/3600)+"h ago";};
+
+async function jget(u){const r=await fetch(u,{cache:"no-store"});return r.json();}
+
+function kpi(v,l){return '<div class="kpi"><div class="v">'+v+'</div><div class="l">'+l+'</div></div>';}
+
+function render(game,state){
+  const odds=(game.free&&game.free.odds)||{};
+  const total=Object.values(odds).reduce((a,b)=>a+b,0);
+  const t=(state&&state.totals)||{opened:0,cards:0,left:0};
+  const slots=(state&&state.slots)||0;
+  const limit=(state&&state.limit)||25;
+  const exp=total? (t.left*total).toFixed(2) : "–";
+
+  $("#day").textContent=(state.day_utc||"–")+" UTC · "+slots+" slots";
+  $("#upd").textContent="updated "+new Date().toLocaleTimeString();
+  $("#snap").textContent="snapshot "+ago(state.generated_ts);
+
+  $("#kpis").innerHTML=
+    kpi(t.opened+"<small>/"+(limit*slots)+"</small>","opens today")+
+    kpi(t.left,"opens left")+
+    kpi(t.cards,"cards today")+
+    kpi(exp,"expected cards left")+
+    kpi(total?(total*100).toFixed(3)+"%":"–","free-crate odds")+
+    kpi(game.cards24==null?"–":fmt(game.cards24),"platform cards 24h")+
+    kpi(game.cards24Usd==null?"–":"$"+fmt(game.cards24Usd),"platform value 24h");
+
+  $("#grid").innerHTML=(state.wallets||[]).map(w=>{
+    const pct=Math.min(100,w.opened/(w.limit||limit)*100);
+    const cls=w.opened>=(w.limit||limit)?"bar full":"bar";
+    const st=w.state==="walking"?'<span class="pill live">walking</span>'
+      :w.state==="stalled"?'<span class="pill stall">stalled</span>'
+      :'<span class="pill">'+(w.state||"idle")+'</span>';
+    return '<div class="card"><div class="chead"><span class="wid">G'+w.idx+'</span>'
+      +'<span class="count">'+w.opened+'<small> opened</small></span></div>'
+      +'<div class="'+cls+'"><i style="width:'+pct+'%"></i></div>'
+      +'<div class="pills"><span class="pill">left '+w.left+'</span>'
+      +'<span class="pill">cards '+w.cards+'</span>'
+      +(w.pity==null?"":'<span class="pill pity">pity '+w.pity+'</span>')
+      +st+'<span class="dim" style="font-size:11.5px">'+ago(w.last_ts)+'</span></div></div>';
+  }).join("")||'<div class="card dim">no active slots</div>';
+
+  const rows=(state.recent||[]).map(r=>{
+    const u=r.u==null?"–":Number(r.u).toFixed(5);
+    return '<tr><td>'+(r.at||"").replace("T"," ").replace("Z","")+'</td><td>G'+r.wallet
+      +'</td><td class="tier-'+r.tier+'">'+r.tier+'</td><td>'+u+'</td><td>'
+      +(r.pity==null?"–":r.pity)+'</td></tr>';}).join("");
+  $("#recent tbody").innerHTML=rows||'<tr><td colspan="5" class="dim">no opens yet</td></tr>';
+}
+
+async function tick(){
+  const out={free:{},cards24:null,cards24Usd:null};
+  let state={wallets:[],recent:[],totals:{}};
+  try{const s=await jget(STATS);out.cards24=s.cards24;out.cards24Usd=s.cards24Usd;}
+  catch(e){}
+  try{const st=await jget(STORE);out.free=st.contents&&st.contents.free||{};}
+  catch(e){}
+  try{state=await jget(RAW_STATE+"?t="+Date.now());}
+  catch(e){try{state=await jget("./state.json?t="+Date.now());}
+  catch(e2){$("#snap").innerHTML='<span class="err">snapshot unavailable</span>';}}
+  render(out,state);
+}
+tick();setInterval(tick,30000);
+</script>
+</body>
+</html>
