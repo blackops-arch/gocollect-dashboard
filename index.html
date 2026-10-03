@@ -207,7 +207,7 @@ const glabel=w=>"G"+w;
 // NUMBER (1..N) while the card view labels the same wallet "G<n>"; use the same
 // spelling so a row and its card agree.
 const walletName=w=>w==null?"—":glabel(w);
-const shortCrate=id=>{const s=String(id==null?"":id);return s.length>10?s.slice(0,5)+"…"+s.slice(-5):(s||"—");};
+const shortCrate=id=>{const s=String(id==null?"":id);return s||"—";};
 const addr=w=>(DATA&&DATA.wallets&&DATA.wallets[String(w)]||{}).addr||"—";
 // Remaining daily opens, from the server's own opensLeft for the wallet live now.
 // Undefined for a wallet with no logged me-line yet.
