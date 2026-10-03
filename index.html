@@ -205,7 +205,10 @@ const message=a=>"HTTP "+a.status+" · POST /v1/crates/"+(a.crate_id||"")+"/open
 // Wallet numbers are 1-based everywhere (alerts say G6 for the wallet whose
 // key file is C06). Printing the raw 0-based index made the panel disagree
 // with both the key files and the card-watch alert.
-const glabel=w=>"G"+(+w+1);
+// A wallet arrives either as a numeric index (attempts) or as a key-file
+// label like "C08" (cards). Labels pass through unchanged; an index maps to
+// its 1-based G-number. "G"+(+"C08"+1) was NaN, which printed GNaN.
+const glabel=w=>{ const n=+w; return isNaN(n)?String(w):("G"+(n+1)); };
 // Wallet label for the flat all-wallets tables. The ledger keys a row by wallet
 // NUMBER (1..N) while the card view labels the same wallet "G<n>"; use the same
 // spelling so a row and its card agree.

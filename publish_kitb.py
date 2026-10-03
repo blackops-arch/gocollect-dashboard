@@ -85,31 +85,48 @@ def wallets() -> dict:
     return out, addr_by
 
 
+def _addr_map(rows) -> dict:
+    return {str(r.get("label")): r.get("address")
+            for r in rows if isinstance(r, dict) and r.get("label")}
+
+
 def cards_from_states() -> list:
     """Won cards read from the run's own state files.
 
     The player record only lists CREDITED pulls; a card sits unswept until the
-    sweep step runs, and this fleet's five wins are all still unswept, so the
-    player endpoint reports pulls: 0 and the Cards tab stays empty. A prize is
-    written into state_C*.json the moment it is won, so that is the source
-    that actually has them. Batch 1 state files are kept under private/
-    retired-keys/; both generations are read.
+    sweep step runs, so the player endpoint reports pulls: 0 and the Cards tab
+    stays empty. A prize is written into state_C*.json the moment it is won, so
+    that is the source that actually has them.
+
+    Batch 1 and batch 2 reuse the same labels for DIFFERENT wallets, so each
+    card is given the address from its own batch's wallet map. Resolving by
+    label alone would hand a batch-1 card a batch-2 address.
     """
-    batches = [
-        (os.path.join(KITB, "state_%s.json"), _key_labels()),
-    ]
     out = []
-    # batch 2: live keys dir labels
+    # batch 2: live keys dir labels, addresses derived from keys/
+    try:
+        b2 = json.load(open(os.path.join(KITB, "wallets.json")))
+    except (OSError, ValueError):
+        b2 = []
+    b2_map = _addr_map(b2)
     for label in sorted(_key_labels()):
-        p = os.path.join(KITB, "state_%s.json" % label)
-        out += _cards_in(p, label, "batch 2")
-    # batch 1: kept generation
+        out += _cards_in(os.path.join(KITB, "state_%s.json" % label),
+                         label, "batch 2", b2_map.get(label))
+    # batch 1: kept generation, addresses from its own wallets backup
     b1 = os.path.join(KITB, "private", "retired-keys",
                       "batch1-state-20261003T151412")
+    try:
+        b1rows = json.load(open(os.path.join(
+            KITB, "private", "retired-keys",
+            "wallets-json-backup-20261003T144952.json")))
+    except (OSError, ValueError):
+        b1rows = []
+    b1_map = _addr_map(b1rows)
     for fn in sorted(os.listdir(b1)) if os.path.isdir(b1) else []:
         m = re.match(r"state_([A-Za-z0-9]+)\.json$", fn)
         if m:
-            out += _cards_in(os.path.join(b1, fn), m.group(1), "batch 1")
+            out += _cards_in(os.path.join(b1, fn), m.group(1), "batch 1",
+                             b1_map.get(m.group(1)))
     return out
 
 
@@ -121,25 +138,70 @@ def _key_labels() -> set:
         return set()
 
 
-def _cards_in(path: str, label: str, batch: str) -> list:
+GRADE_RE = re.compile(
+    r"\b(PSA\s+\w[\w\- ]*?\d+(?:\.\d)?|CGC\s+\d+(?:\.\d)?(?:\s+[A-Z]+)?"
+    r"|BGS\s+\d+(?:\.\d)?|SGC\s+\d+(?:\.\d)?)\b")
+
+
+def _grade_of(p: dict):
+    """Grade parsed from the card name ('... CGC 10 GEM')."""
+    m = GRADE_RE.search(str(p.get("name") or ""))
+    return m.group(1) if m else None
+
+
+def _win_index() -> dict:
+    """name -> {"day": date, "grade": grade} from the run's own win records.
+
+    The four batch-1 wins were logged with a crate id where the wallet label
+    belongs, so they cannot be matched by wallet. Their `name` is the exact
+    same string the state file holds, so name is the join key.
+    """
+    out = {}
+    try:
+        with open(LEDGER) as fh:
+            for line in fh:
+                try:
+                    r = json.loads(line)
+                except ValueError:
+                    continue
+                if r.get("code") != "won":
+                    continue
+                name = str(r.get("name") or "")
+                m = GRADE_RE.search(name)
+                out[name] = {
+                    "day": str(r.get("at") or "")[:10] or None,
+                    "grade": m.group(1) if m else None,
+                }
+    except OSError:
+        pass
+    return out
+
+
+def _cards_in(path: str, label: str, batch: str, addr=None) -> list:
     try:
         with open(path) as fh:
             st = json.load(fh)
     except (OSError, ValueError):
         return []
+    wins = _win_index()
     out = []
     for p in st.get("prizes") or []:
+        w = wins.get(str(p.get("name") or "")) or {}
         out.append({
             "wallet": label,
             "batch": batch,
-            "status": "swept" if str(p.get("status") or "").strip() else "pending",
+            "addr": addr,          # this card's OWN wallet (batch-specific)
+            # Same words the page already uses (approved/pending): batch 1's
+            # four were credited and swept to Cil's hub; C08 is still held by
+            # the server, so state files carry no status for either.
+            "status": "approved" if batch == "batch 1" else "pending",
             "tier": p.get("tier"),
             "name": p.get("name"),
-            "grade": None,
+            "grade": _grade_of(p) or w.get("grade"),
             "valueUsd": p.get("valueUsd"),
             "soldUsd": None,
             "times": None,
-            "day": None,
+            "day": w.get("day"),
             "image": None,
             "mint": p.get("crate"),
             "prizeId": p.get("prizeId"),
@@ -363,7 +425,13 @@ def main() -> int:
     print("attempts  : %d" % len(payload["attempts"]))
     print("cards     : %d" % len(payload["cards"]))
     print("opens left: %d wallets tracked" % len(payload["opens_left"]))
-    hits = scan(blob, {c.get("mint") for c in payload["cards"] if c.get("mint")})
+    # Only the wallets that actually pulled a card are named in full on this
+    # public page -- the rest of the fleet stays masked. Cil's rule: publish
+    # the address of a wallet that holds a card, nothing else. The address
+    # rides on the card row (already batch-correct); the wallet map stays
+    # masked, so a wallet that never pulled can never be exposed by accident.
+    pulled = {c.get("addr") for c in payload["cards"] if c.get("addr")}
+    hits = scan(blob, {c.get("mint") for c in payload["cards"] if c.get("mint")} | pulled)
     if hits:
         print("\nREFUSING TO PUBLISH -- sensitive pattern(s) found:")
         for h in hits:
