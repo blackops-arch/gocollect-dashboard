@@ -108,6 +108,8 @@ tbody tr:hover{background:rgba(35,42,92,.55)}
 .t-rare{color:var(--rare)}
 .t-grail{color:var(--grail);font-weight:800;text-shadow:0 0 10px rgba(240,128,48,.55)}
 .t-empty{color:var(--dim)}
+.c-empty{color:var(--dim)}.c-out_of_range{color:var(--warn)}.c-suspicious_movement{color:var(--bad)}
+.c-too_fast{color:var(--vio)}.c-net_error{color:var(--bad)}.c-already_opened{color:var(--dim)}
 .s200{color:var(--ok)}.s4xx{color:var(--warn)}.s5xx{color:var(--bad)}.s0{color:var(--vio)}
 .reasons{display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));margin-bottom:14px}
 .rcard{background:linear-gradient(180deg,var(--card),#161b3d);border:1px solid var(--line);
@@ -184,7 +186,7 @@ footer{color:var(--dim);font-size:11px;padding:16px;border-top:1px solid var(--l
 </main>
 <div id="scrim"></div>
 <aside id="drawer" aria-hidden="true"></aside>
-<footer>All times UTC · auto-refresh 8s · click a wallet or card for detail ·
+<footer>Times shown in your local clock · reads UTC from the ledger · auto-refresh 8s · click a wallet or card for detail ·
 the ledger stores the server's status/code, not its response body or message text</footer>
 <script>
 const RAW="https://raw.githubusercontent.com/blackops-arch/gocollect-dashboard/data/ledger.json";
@@ -201,6 +203,11 @@ const side=a=>a.status===0?"client":(a.status>=400?"server":"—");
 const endpoint=a=>"POST /v1/crates/"+(a.crate_id||"")+"/open";
 const message=a=>"HTTP "+a.status+" · POST /v1/crates/"+(a.crate_id||"")+"/open";
 const glabel=w=>"G"+w;
+// Wallet label for the flat all-wallets tables. The ledger keys a row by wallet
+// NUMBER (1..N) while the card view labels the same wallet "G<n>"; use the same
+// spelling so a row and its card agree.
+const walletName=w=>w==null?"—":glabel(w);
+const shortCrate=id=>{const s=String(id==null?"":id);return s.length>10?s.slice(0,5)+"…"+s.slice(-5):(s||"—");};
 const addr=w=>(DATA&&DATA.wallets&&DATA.wallets[String(w)]||{}).addr||"—";
 // Remaining daily opens, from the server's own opensLeft for the wallet live now.
 // Undefined for a wallet with no logged me-line yet.
@@ -208,8 +215,12 @@ const leftOf=w=>(DATA&&DATA.opens_left||{})[String(w)];
 const totalLeft=()=>Object.values((DATA&&DATA.opens_left)||{}).reduce((s,n)=>s+Number(n||0),0);
 const roll=u=>u==null?"—":Number(u).toFixed(5);
 const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const hhmmss=at=>(at||"").slice(11,19);
-const dayof=at=>(at||"").slice(0,10);
+// The ledger stores UTC. Render in the viewer's own clock so a fresh row never
+// reads as older than it is. Return the UTC slice when the stamp will not parse.
+const LOC=(()=>{const d=new Date();return isNaN(d)?"":d.toLocaleTimeString("en-GB",{hour12:false}).slice(-6)+" "+d.toLocaleTimeString("en-GB",{timeZoneName:"short"}).split(" ").pop();})();
+const _dt=at=>{const d=new Date(at);return isNaN(d)?null:d;};
+const hhmmss=at=>{const d=_dt(at);return d?d.toLocaleTimeString("en-GB",{hour12:false}):(at||"").slice(11,19);};
+const dayof=at=>{const d=_dt(at);return d?d.toLocaleDateString("en-CA"):(at||"").slice(0,10);};
 const scls=s=>s===200?"s200":s===0?"s0":s>=500?"s5xx":"s4xx";
 const money=v=>v==null?"—":"$"+Number(v).toLocaleString(undefined,{maximumFractionDigits:2});
 function ago(at){
@@ -387,8 +398,8 @@ function walletView(){
     if(x<y)return -dir; if(x>y)return dir; return 0;
   });
   const COLSN={denials:[["at","time"],["status","status"],["reason","reason"],["side","side"],["message","message"]],
-               opens:[["at","time"],["tier","tier"],["drawn_tier","drawn"],["u","roll"],["open_id","mint"]],
-               all:[["at","time"],["status","status"],["reason","reason"],["side","side"],["tier","tier"],["u","roll"]]};
+               opens:[["at","time"],["wallet","wallet"],["code","result"],["status","status"],["pity","pity"],["d","dist"],["crate_id","crate"],["u","roll"]],
+               all:[["at","time"],["wallet","wallet"],["code","result"],["status","status"],["reason","reason"],["side","side"],["tier","tier"],["u","roll"]]};
   const thead=COLSN[SUB].map(([f,l])=>
     '<th data-f="'+f+'" class="'+(f===k?"sel":"")+'">'+l
     +(f===k?' <span class="ar">'+(dir<0?"▼":"▲")+'</span>':'')+'</th>').join("");
@@ -397,9 +408,11 @@ function walletView(){
     if(SUB==="denials") return '<tr data-i="'+i+'"><td>'+hhmmss(a.at)+'</td><td class="'+scls(a.status)+'">'
       +a.status+'</td><td><span class="badge b-'+side(a)+'">'+esc(reason(a))+'</span></td><td>'+side(a)
       +'</td><td>'+esc(message(a))+'</td></tr>';
-    if(SUB==="opens") return '<tr data-i="'+i+'"><td>'+hhmmss(a.at)+'</td><td class="t-'+esc(a.tier)
-      +'">'+esc(a.tier)+'</td><td class="t-'+esc(a.drawn_tier||"empty")+'">'+esc(a.drawn_tier||"—")
-      +'</td><td>'+roll(a.u)+'</td><td>'+(a.open_id==null?"—":a.open_id)+'</td></tr>';
+    if(SUB==="opens") return '<tr data-i="'+i+'"><td>'+hhmmss(a.at)+'</td><td>'+esc(walletName(a.wallet))
+      +'</td><td class="c-'+esc(a.code||"unknown")+'">'+esc(a.code||"?")+'</td><td class="'+scls(a.status)
+      +'">'+(a.status==null?"—":a.status)+'</td><td>'+(a.pity==null?"—":a.pity)+'</td><td>'
+      +(a.d==null?"—":Math.round(a.d)+'m')+'</td><td class="dim">'+esc(shortCrate(a.crate_id))
+      +'</td><td>'+roll(a.u)+'</td></tr>';
     return '<tr data-i="'+i+'"><td>'+hhmmss(a.at)+'</td><td class="'+scls(a.status)+'">'+a.status+'</td><td>'
       +(out==="denied"?'<span class="badge b-'+side(a)+'">'+esc(reason(a))+'</span>':'—')+'</td><td>'
       +(out==="denied"?side(a):"—")+'</td><td class="t-'+esc(a.tier||"empty")+'">'+esc(a.tier||"—")
