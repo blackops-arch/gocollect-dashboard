@@ -58,6 +58,7 @@ color:var(--dim);cursor:pointer;font:inherit;font-size:13px;line-height:1.4;tran
  background:linear-gradient(90deg,var(--pk-yellow),#fff);-webkit-background-clip:text;
  background-clip:text;color:transparent}
 .waddr{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--dim)}
+.mono{font-family:ui-monospace,Menlo,monospace;font-size:11px;overflow-wrap:anywhere}
 .wbig{font-size:26px;font-weight:800;line-height:1;font-family:ui-monospace,Menlo,monospace;color:#fff}
 .wbig span{font-size:11px;font-weight:500;color:var(--dim);font-family:inherit;margin-left:4px}
 .split{display:flex;height:7px;border-radius:4px;overflow:hidden;background:#2a3168}
@@ -359,7 +360,7 @@ function cardsPage(){
   const thead=cols.map(([f,l])=>'<th data-f="'+f+'" class="'+(f===k?"sel":"")+'">'+l
     +(f===k?' <span class="ar">'+(dir<0?"▼":"▲")+'</span>':'')+'</th>').join("");
   const body=cs.length?cs.map((c,i)=>
-    '<tr data-c="'+i+'"><td>'+glabel(c.wallet)+'</td>'
+    '<tr data-c="'+i+'"><td class="mono">'+esc(c.addr||c.wallet)+'</td>'
     +'<td><span class="badge '+(STCLASS[c.status]||"")+'">'+esc(c.status)+'</span></td>'
     +'<td class="t-'+esc(c.tier||"empty")+'">'+esc(c.tier||"—")+'</td>'
     +'<td>'+esc(c.name||"—")+'</td><td>'+esc(c.grade||"—")+'</td>'
