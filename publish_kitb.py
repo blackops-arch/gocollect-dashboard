@@ -37,6 +37,7 @@ OUTPUT = os.path.join(KITB, "output")
 DATA_BRANCH = "data"
 PUBLISH_PATH = "ledger.json"
 API = "https://api.github.com/repos/blackops-arch/gocollect-dashboard/contents"
+PLAYER = "https://gocollect.fun/v1/players/%s"
 
 # The page is PUBLIC. Wallet addresses never leave unmasked.
 ADDR_RE = re.compile(r"\b[1-9A-HJ-NP-Za-km-z]{32,44}\b")
@@ -79,9 +80,121 @@ def wallets() -> dict:
         raw = open(os.path.join(KITB, "keys", fn)).read().strip()
         kp = Keypair.from_bytes(base58.b58decode(raw))
         addr = str(kp.pubkey())
-        out[label] = {"label": label, "addr": addr}
+        out[label] = {"label": label, "addr": mask(addr)}
         addr_by[label] = addr
     return out, addr_by
+
+
+def cards_from_states() -> list:
+    """Won cards read from the run's own state files.
+
+    The player record only lists CREDITED pulls; a card sits unswept until the
+    sweep step runs, and this fleet's five wins are all still unswept, so the
+    player endpoint reports pulls: 0 and the Cards tab stays empty. A prize is
+    written into state_C*.json the moment it is won, so that is the source
+    that actually has them. Batch 1 state files are kept under private/
+    retired-keys/; both generations are read.
+    """
+    batches = [
+        (os.path.join(KITB, "state_%s.json"), _key_labels()),
+    ]
+    out = []
+    # batch 2: live keys dir labels
+    for label in sorted(_key_labels()):
+        p = os.path.join(KITB, "state_%s.json" % label)
+        out += _cards_in(p, label, "batch 2")
+    # batch 1: kept generation
+    b1 = os.path.join(KITB, "private", "retired-keys",
+                      "batch1-state-20261003T151412")
+    for fn in sorted(os.listdir(b1)) if os.path.isdir(b1) else []:
+        m = re.match(r"state_([A-Za-z0-9]+)\.json$", fn)
+        if m:
+            out += _cards_in(os.path.join(b1, fn), m.group(1), "batch 1")
+    return out
+
+
+def _key_labels() -> set:
+    try:
+        return {fn[:-4] for fn in os.listdir(os.path.join(KITB, "keys"))
+                if WALLET_RE.match(fn)}
+    except OSError:
+        return set()
+
+
+def _cards_in(path: str, label: str, batch: str) -> list:
+    try:
+        with open(path) as fh:
+            st = json.load(fh)
+    except (OSError, ValueError):
+        return []
+    out = []
+    for p in st.get("prizes") or []:
+        out.append({
+            "wallet": label,
+            "batch": batch,
+            "status": "swept" if str(p.get("status") or "").strip() else "pending",
+            "tier": p.get("tier"),
+            "name": p.get("name"),
+            "grade": None,
+            "valueUsd": p.get("valueUsd"),
+            "soldUsd": None,
+            "times": None,
+            "day": None,
+            "image": None,
+            "mint": p.get("crate"),
+            "prizeId": p.get("prizeId"),
+        })
+    return out
+
+
+def pulls_for(addr: str) -> list:
+    """Cards the platform actually AWARDED this wallet.
+
+    Source: GET /v1/players/<addr> -> `pulls`. This is the credited-card record,
+    which is why the ledger reads it instead of our own log: an open can return
+    an error client-side while the card is credited server-side, and a log-driven
+    card list would silently miss that pull.
+
+    Returns [] on any failure so a flaky fetch degrades to "no new cards" rather
+    than aborting the publish run.
+    """
+    try:
+        req = urllib.request.Request(
+            PLAYER % addr,
+            headers={"User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                                    "Chrome/131.0.0.0 Safari/537.36")})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return (json.load(r) or {}).get("pulls") or []
+    except Exception as e:
+        print("  pulls fetch failed for %s: %s" % (addr[:6] + "\u2026", str(e)[:80]))
+        return []
+
+
+def cards_from_pulls(addr_by: dict) -> list:
+    """Build the dashboard's card list from every wallet's credited pulls.
+
+    `addr_by` maps label -> full address; the full address is used only to query
+    the player record and is never serialised -- the payload keeps the label and
+    the masked address, and scan() re-checks that before any push.
+    """
+    out = []
+    for label in sorted(addr_by):
+        for p in pulls_for(addr_by[label]):
+            out.append({
+                "wallet": label,
+                "status": "cashed-out" if p.get("cashedOut") else "approved",
+                "tier": p.get("tier"),
+                "name": p.get("name"),
+                "grade": p.get("grade"),
+                "valueUsd": p.get("valueUsd"),
+                "soldUsd": p.get("soldUsd"),
+                "times": p.get("times"),
+                "day": p.get("day"),
+                "image": p.get("image"),
+                "mint": p.get("mint"),
+            })
+    return out
 
 
 def opens_left() -> dict:
@@ -226,8 +339,16 @@ def build() -> dict:
     idx = {lbl: i for i, lbl in enumerate(sorted(wmap))}
     for r in rows:
         r["wallet"] = idx.get(r["wallet"], r["wallet"])
-    cards = [c for c in (r for r in rows if r.get("code") == "won")
-             if c.get("tier") or c.get("name")]
+    # Cards come from the platform's own credited-pull record, not from our log:
+    # the log only knows "won" lines, and this fleet has never written one while
+    # cards were already being credited (see card_watch.py's note). Reading pulls
+    # is what makes the Cards tab show who pulled what.
+    cards = cards_from_pulls(addr_by)
+    if not cards:
+        # Nothing credited yet (unswept wins are invisible to the player
+        # record). Fall back to the run's own state files, which carry the
+        # prize the moment it is won.
+        cards = cards_from_states()
     return {"generated": datetime.datetime.utcnow().isoformat(timespec="seconds") + "Z",
             "wallets": {str(v): {"label": k, "addr": wmap[k]["addr"]} for k, v in idx.items()},
             "attempts": rows, "cards": cards,

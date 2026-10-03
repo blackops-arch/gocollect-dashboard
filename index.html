@@ -202,7 +202,10 @@ const reason=a=>a.code?a.code:(a.status===0?"transport":"unknown");
 const side=a=>a.status===0?"client":(a.status>=400?"server":"—");
 const endpoint=a=>"POST /v1/crates/"+(a.crate_id||"")+"/open";
 const message=a=>"HTTP "+a.status+" · POST /v1/crates/"+(a.crate_id||"")+"/open";
-const glabel=w=>"G"+w;
+// Wallet numbers are 1-based everywhere (alerts say G6 for the wallet whose
+// key file is C06). Printing the raw 0-based index made the panel disagree
+// with both the key files and the card-watch alert.
+const glabel=w=>"G"+(+w+1);
 // Wallet label for the flat all-wallets tables. The ledger keys a row by wallet
 // NUMBER (1..N) while the card view labels the same wallet "G<n>"; use the same
 // spelling so a row and its card agree.
@@ -248,7 +251,10 @@ function stats(list){
   return {n:list.length, denied:denied.length, acc:acc.length, draws:draws.length,
           tooFast:denied.filter(a=>reason(a)==="too_fast").length};
 }
-function cardsOf(w){ return (DATA.cards||[]).filter(c=>c.wallet===w); }
+// Cards carry the key-file label ("C06"); the Wallet tab iterates numeric keys.
+// Compare on one normalised form so both sides match.
+const walletKey=w=>{ const k=(DATA.wallets||{})[w]; return (k&&k.label)||("C"+String(+w+1).padStart(2,"0")); };
+function cardsOf(w){ const k=walletKey(w); return (DATA.cards||[]).filter(c=>c.wallet===k); }
 function sameReasonToday(a){
   const d=dayof(a.at), r=reason(a);
   return DATA.attempts.filter(b=>dayof(b.at)===d && outcome(b)==="denied" && reason(b)===r).length;
