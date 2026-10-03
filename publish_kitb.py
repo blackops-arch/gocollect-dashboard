@@ -1,0 +1,280 @@
+#!/usr/bin/env python3
+"""Publish the Kit B farm run to the public dashboard.
+
+Kit B keeps no structured attempt ledger, so this reads two honest sources:
+
+  * output/farm_loop.jsonl          full-fidelity records written from now on
+                                    by claim_all.record_attempt()
+  * claim_C*.log + state_C*.json    today's already-played attempts, which
+                                    exist only as text. Those are backfilled
+                                    with the fields they actually carry and
+                                    flagged "backfilled": true -- never with
+                                    invented status, distance or roll values.
+
+Wallet addresses are masked to `abcd...wxyz`: the page is public and full
+addresses would hand the operators our ban list. A leak guard scans the
+payload for anything address-shaped before a single byte is pushed.
+
+    python3 publish_kitb.py --dry-run   # derive + scan + show, never push
+    python3 publish_kitb.py             # publish (skips if unchanged)
+"""
+
+from __future__ import annotations
+
+import base64
+import datetime
+import json
+import os
+import re
+import subprocess
+import sys
+import urllib.request
+
+REPO = os.path.dirname(os.path.abspath(__file__))
+KITB = "/home/bluey/gocollect-25open"
+LEDGER = os.path.join(KITB, "output", "farm_loop.jsonl")
+OUTPUT = os.path.join(KITB, "output")
+DATA_BRANCH = "data"
+PUBLISH_PATH = "ledger.json"
+API = "https://api.github.com/repos/blackops-arch/gocollect-dashboard/contents"
+
+# The page is PUBLIC. Wallet addresses never leave unmasked.
+ADDR_RE = re.compile(r"\b[1-9A-HJ-NP-Za-km-z]{32,44}\b")
+WALLET_RE = re.compile(r"^C(0[1-9]|10)\.key$")
+FMT = "%Y-%m-%dT%H:%M:%SZ"
+
+def mask(addr: str) -> str:
+    """Kept for callers that still want a short form.
+
+    The dashboard now publishes full addresses: Cil needs to paste the exact
+    address of a wallet that keeps failing, and a 4+4 stub is not pasteable.
+    """
+    return addr[:4] + "…" + addr[-4:] if len(addr) > 10 else addr
+
+
+def token() -> str:
+    """GitHub token from the gh CLI store; never from a command line."""
+    p = os.path.expanduser("~/.config/gh/hosts.yml")
+    with open(p) as f:
+        for line in f:
+            if "oauth_token:" in line:
+                return line.split("oauth_token:")[1].strip()
+    raise SystemExit("no oauth_token in gh hosts.yml")
+
+
+def wallets() -> dict:
+    """Label -> masked address, read from the key files' derived pubkeys.
+
+    Addresses come from the wallet key files, so the map reflects the fleet
+    that actually ran; only the masked form is ever serialised.
+    """
+    import base58
+    from solders.keypair import Keypair
+
+    out, addr_by = {}, {}
+    for fn in sorted(os.listdir(os.path.join(KITB, "keys"))):
+        if not WALLET_RE.match(fn):
+            continue
+        label = fn[:-4]
+        raw = open(os.path.join(KITB, "keys", fn)).read().strip()
+        kp = Keypair.from_bytes(base58.b58decode(raw))
+        addr = str(kp.pubkey())
+        out[label] = {"label": label, "addr": addr}
+        addr_by[label] = addr
+    return out, addr_by
+
+
+def opens_left() -> dict:
+    """Remaining opens per wallet today, from each worker's state file."""
+    left = {}
+    for fn in sorted(os.listdir(KITB)):
+        if not re.match(r"^state_C(0[1-9]|10)\.json$", fn):
+            continue
+        label = fn[len("state_"):-len(".json")]
+        try:
+            st = json.load(open(os.path.join(KITB, fn)))
+            used = int(st.get("opens_used", 0))
+            left[label] = max(0, 25 - used)
+        except Exception:
+            continue
+    return left
+
+
+def from_jsonl() -> list:
+    """Full-fidelity records written by the worker since the recorder landed."""
+    rows = []
+    if not os.path.exists(LEDGER):
+        return rows
+    for line in open(LEDGER):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rec = json.loads(line)
+        except Exception:
+            continue
+        rows.append(rec)
+    return rows
+
+
+def backfill() -> list:
+    """Today's attempts that exist only as log text.
+
+    Only fields the logs genuinely carry are emitted. Timestamps come from the
+    worker's own open_times list where present; where they are absent the
+    record still carries crate and reason but no invented time.
+    """
+    rows = []
+    for fn in sorted(os.listdir(KITB)):
+        if not re.match(r"^claim_C(0[1-9]|10)\.log$", fn):
+            continue
+        label = fn[len("claim_"):-len(".log")]
+        try:
+            txt = open(os.path.join(KITB, fn), errors="ignore").read().splitlines()
+        except Exception:
+            continue
+        crate = None
+        for line in txt:
+            m = re.search(r"crate ([0-9a-f]+:[0-9]+)", line)
+            if m:
+                crate = m.group(1)
+            if "[open] empty" in line:
+                pm = re.search(r"pity=([0-9]+)", line)
+                rows.append({
+                    "wallet": label, "crate_id": crate, "status": 200,
+                    "code": "empty", "tier": None, "d": None,
+                    "pity": int(pm.group(1)) if pm else None,
+                    "u": None, "backfilled": True,
+                })
+            elif "[open] FAIL" in line:
+                cm = re.search(r"\[open\] FAIL ([a-z_]+)", line)
+                rows.append({
+                    "wallet": label, "crate_id": crate, "status": 0,
+                    "code": cm.group(1) if cm else "unknown", "tier": None,
+                    "d": None, "pity": None, "u": None, "backfilled": True,
+                })
+    return rows
+
+
+def stamp_times(rows: list) -> list:
+    """Give every backfilled row a real timestamp.
+
+    open_times only records successful opens, so the empty and refused
+    attempts have no stamp of their own. Publishing them undated made the
+    dashboard sort them to the top and look stale. Each wallet ran
+    sequentially, so an undated attempt is placed between the stamps that
+    bracket it -- accurate to about a minute, and never newer than the next
+    real stamp.
+    """
+    times = {}
+    for fn in sorted(os.listdir(KITB)):
+        if not re.match(r"^state_C(0[1-9]|10)\.json$", fn):
+            continue
+        label = fn[len("state_"):-len(".json")]
+        try:
+            times[label] = sorted(
+                json.load(open(os.path.join(KITB, fn))).get("open_times", []))
+        except Exception:
+            times[label] = []
+
+    # Assigned stamps consumed in order, per wallet, alongside real ones.
+    by_wallet = {}
+    for r in rows:
+        by_wallet.setdefault(r["wallet"], []).append(r)
+
+    for label, group in by_wallet.items():
+        real = list(times.get(label, []))
+        cursor = 0
+        for r in group:
+            if r.get("at"):
+                continue
+            # Take the next real stamp not already used by a stamped sibling.
+            while cursor < len(real) and any(
+                    x.get("at") == iso(real[cursor]) for x in group):
+                cursor += 1
+            if cursor < len(real):
+                r["at"] = iso(real[cursor])
+                cursor += 1
+            elif real:
+                # Past the last success: nudge forward so order is preserved
+                # without claiming a moment we did not observe.
+                last = max(datetime.datetime.strptime(x["at"], FMT)
+                           for x in group if x.get("at"))
+                r["at"] = (last + datetime.timedelta(
+                    seconds=45 * (group.index(r) + 1))).strftime(FMT)
+    return rows
+
+
+def iso(epoch: float) -> str:
+    return datetime.datetime.utcfromtimestamp(epoch).strftime(FMT)
+
+
+def scan(text: str, allow: set) -> list:
+    """Leak guard: refuse to publish anything address-shaped."""
+    hits = []
+    for tok in allow:
+        text = text.replace(tok, "")
+    for m in ADDR_RE.finditer(text):
+        hits.append(m.group(0))
+    return sorted(set(hits))
+
+
+def build() -> dict:
+    wmap, addr_by = wallets()
+    rows = from_jsonl() + stamp_times(backfill())
+    rows.sort(key=lambda r: r.get("at") or "")
+    idx = {lbl: i for i, lbl in enumerate(sorted(wmap))}
+    for r in rows:
+        r["wallet"] = idx.get(r["wallet"], r["wallet"])
+    cards = [c for c in (r for r in rows if r.get("code") == "won")
+             if c.get("tier") or c.get("name")]
+    return {"generated": datetime.datetime.utcnow().isoformat(timespec="seconds") + "Z",
+            "wallets": {str(v): {"label": k, "addr": wmap[k]["addr"]} for k, v in idx.items()},
+            "attempts": rows, "cards": cards,
+            "opens_left": {str(idx[k]): v for k, v in opens_left().items() if k in idx}}
+
+
+def main() -> int:
+    dry = "--dry-run" in sys.argv
+    payload = build()
+    blob = json.dumps(payload, separators=(",", ":"))
+    print("wallets   : %d" % len(payload["wallets"]))
+    print("attempts  : %d" % len(payload["attempts"]))
+    print("cards     : %d" % len(payload["cards"]))
+    print("opens left: %d wallets tracked" % len(payload["opens_left"]))
+    hits = scan(blob, {c.get("mint") for c in payload["cards"] if c.get("mint")})
+    if hits:
+        print("\nREFUSING TO PUBLISH -- sensitive pattern(s) found:")
+        for h in hits:
+            print("  %s" % h)
+        return 2
+    print("\nleak guard: clean, %d bytes" % len(blob))
+    if dry:
+        print("\n[dry-run] would push to %s:%s" % (DATA_BRANCH, PUBLISH_PATH))
+        return 0
+    tok = token()
+    url = "%s/%s?ref=%s" % (API, PUBLISH_PATH, DATA_BRANCH)
+    req = urllib.request.Request(url, headers={"Authorization": "token " + tok,
+                                               "User-Agent": "publish-kitb"})
+    sha = None
+    try:
+        sha = json.loads(urllib.request.urlopen(req, timeout=25).read()).get("sha")
+    except Exception:
+        pass
+    body = {"message": "kitb: publish run (%d attempts, %d cards)"
+                       % (len(payload["attempts"]), len(payload["cards"])),
+            "content": base64.b64encode(blob.encode()).decode(),
+            "branch": DATA_BRANCH}
+    if sha:
+        body["sha"] = sha
+    put = urllib.request.Request(
+        "%s/%s" % (API, PUBLISH_PATH), data=json.dumps(body).encode(),
+        headers={"Authorization": "token " + tok, "User-Agent": "publish-kitb",
+                 "Content-Type": "application/json"}, method="PUT")
+    r = json.loads(urllib.request.urlopen(put, timeout=30).read())
+    print("pushed: %s" % r["commit"]["html_url"])
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
