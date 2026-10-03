@@ -384,7 +384,10 @@ function walletView(){
   const leftCol=wLeft==null?"var(--dim)":(wLeft?"var(--ok)":"var(--bad)");
   let sub=A.slice();
   if(SUB==="denials") sub=sub.filter(a=>outcome(a)==="denied");
-  if(SUB==="opens")   sub=sub.filter(a=>outcome(a)==="success"&&a.tier);
+  // Opens = every open attempt, newest first. Filtering on a.tier only ever
+  // matched a WIN, so this tab sat empty at 0 cards while the wallet was opening
+  // steadily. Show empties and refusals too, with their result code.
+  if(SUB==="opens")   sub=sub.filter(a=>a.code!=="denied");
   const [k,dir]=SORT[SUB];
   sub.sort((a,b)=>{
     let x,y;
@@ -474,13 +477,12 @@ function attemptsPage(){
   const body=A.slice(0,600).map(a=>{
     const i=DATA.attempts.indexOf(a), out=outcome(a);
     return '<tr data-i="'+i+'"><td>'+hhmmss(a.at)+'</td><td>'+glabel(a.wallet)+'</td>'
-      +'<td class="'+scls(a.status)+'">'+a.status+'</td><td>'
-      +(out==="denied"?'<span class="badge b-'+side(a)+'">'+esc(reason(a))+'</span>':'—')
-      +'</td><td>'+(out==="denied"?side(a):"—")+'</td><td class="t-'+esc(a.tier||"empty")+'">'
-      +esc(a.tier||"—")+'</td></tr>';
+      +'<td class="'+scls(a.status)+'">'+a.status+'</td><td class="c-'+esc(a.code||"unknown")
+      +'">'+esc(a.code||"?")+'</td><td>'+(a.d==null?"—":Math.round(a.d)+'m')+'</td><td>'
+      +(a.pity==null?"—":a.pity)+'</td></tr>';
   }).join("")||'<tr><td colspan="6" class="empty">nothing in this window</td></tr>';
   $("#view").innerHTML='<div class="card"><div class="tscroll"><table><thead><tr>'
-    +'<th>time</th><th>wallet</th><th>status</th><th>reason</th><th>side</th><th>tier</th>'
+    +'<th>time</th><th>wallet</th><th>status</th><th>result</th><th>dist</th><th>pity</th>'
     +'</tr></thead><tbody>'+body+'</tbody></table></div></div>';
   document.querySelectorAll("tbody tr[data-i]").forEach(tr=>
     tr.onclick=()=>detail(DATA.attempts[+tr.dataset.i]));
