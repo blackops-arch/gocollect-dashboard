@@ -41,7 +41,16 @@ PLAYER = "https://gocollect.fun/v1/players/%s"
 
 # The page is PUBLIC. Wallet addresses never leave unmasked.
 ADDR_RE = re.compile(r"\b[1-9A-HJ-NP-Za-km-z]{32,44}\b")
-WALLET_RE = re.compile(r"^C(0[1-9]|10)\.key$")
+WALLET_RE = re.compile(r"^Z(?:0[1-9]|10)\.key$")
+# Only the live Z run is published. The C keys are emptied and the S keys are
+# tainted, so neither may appear on the public page (Cil 2026-10-04).
+LIVE_LABELS = ("Z01", "Z02", "Z03", "Z04", "Z05")
+BATCH_NAME = "Z-run"
+DAILY_LIMIT = 25          # opens per wallet per day
+
+# label -> full address, for looking up each wallet's pinned device identity.
+# Populated by wallets(); identity_pin.json is keyed by address, not label.
+ADDR_BY_LABEL = {}
 FMT = "%Y-%m-%dT%H:%M:%SZ"
 
 def mask(addr: str) -> str:
@@ -74,6 +83,8 @@ def wallets() -> dict:
 
     out, addr_by = {}, {}
     for fn in sorted(os.listdir(os.path.join(KITB, "keys"))):
+        if fn[:-4] not in LIVE_LABELS:
+            continue
         if not WALLET_RE.match(fn):
             continue
         label = fn[:-4]
@@ -82,6 +93,8 @@ def wallets() -> dict:
         addr = str(kp.pubkey())
         out[label] = {"label": label, "addr": mask(addr)}
         addr_by[label] = addr
+    ADDR_BY_LABEL.clear()
+    ADDR_BY_LABEL.update(addr_by)
     return out, addr_by
 
 
@@ -111,7 +124,7 @@ def cards_from_states() -> list:
     b2_map = _addr_map(b2)
     for label in sorted(_key_labels()):
         out += _cards_in(os.path.join(KITB, "state_%s.json" % label),
-                         label, "batch 2", b2_map.get(label))
+                         label, BATCH_NAME, b2_map.get(label))
     # batch 1: kept generation, addresses from its own wallets backup
     b1 = os.path.join(KITB, "private", "retired-keys",
                       "batch1-state-20261003T151412")
@@ -132,8 +145,8 @@ def cards_from_states() -> list:
 
 def _key_labels() -> set:
     try:
-        return {fn[:-4] for fn in os.listdir(os.path.join(KITB, "keys"))
-                if WALLET_RE.match(fn)}
+        have = set(os.listdir(os.path.join(KITB, "keys")))
+        return {lbl for lbl in LIVE_LABELS if (lbl + ".key") in have}
     except OSError:
         return set()
 
@@ -233,18 +246,38 @@ def pulls_for(addr: str) -> list:
         return []
 
 
+def _batch1_addrs() -> dict:
+    """label -> address for the previous batch, from its kept wallets backup."""
+    try:
+        rows = json.load(open(os.path.join(
+            KITB, "private", "retired-keys",
+            "wallets-json-backup-20261003T144952.json")))
+    except (OSError, ValueError):
+        return {}
+    return {str(r.get("label")): r.get("address")
+            for r in rows if isinstance(r, dict) and r.get("label")}
+
+
 def cards_from_pulls(addr_by: dict) -> list:
     """Build the dashboard's card list from every wallet's credited pulls.
 
     `addr_by` maps label -> full address; the full address is used only to query
-    the player record and is never serialised -- the payload keeps the label and
-    the masked address, and scan() re-checks that before any push.
+    the player record and is never serialised. BOTH batches are queried: they
+    reuse the labels C01-C10 for different wallets, and the credited cards
+    carrying tier/grade live at the previous batch's addresses, so querying
+    only the live keys returned no pulls and left Rarity blank.
     """
+    targets = [(lbl, BATCH_NAME, a) for lbl, a in addr_by.items()]
+    targets += [(lbl, "batch 1", a) for lbl, a in _batch1_addrs().items()]
     out = []
-    for label in sorted(addr_by):
-        for p in pulls_for(addr_by[label]):
+    for label, batch, addr in sorted(targets):
+        if not addr:
+            continue
+        for p in pulls_for(addr):
             out.append({
                 "wallet": label,
+                "batch": batch,
+                "addr": addr,
                 "status": "cashed-out" if p.get("cashedOut") else "approved",
                 "tier": p.get("tier"),
                 "name": p.get("name"),
@@ -259,19 +292,74 @@ def cards_from_pulls(addr_by: dict) -> list:
     return out
 
 
+def _run_state(label: str) -> dict:
+    """That wallet's own state file, or {} when unreadable."""
+    try:
+        return json.load(open(os.path.join(KITB, "state_%s.json" % label)))
+    except (OSError, ValueError):
+        return {}
+
+
+def _eta_min(label: str):
+    """Minutes to finish the daily quota, from the state file's own open_times."""
+    st = _run_state(label)
+    ts = sorted(st.get("open_times") or [])
+    used = int(st.get("opens_used", len(ts)) or 0)
+    left = max(0, DAILY_LIMIT - used)
+    if left == 0:
+        return 0
+    if len(ts) < 2:
+        return None
+    span = ts[-1] - ts[0]
+    if span <= 0:
+        return None
+    rate = (len(ts) - 1) / span * 60.0
+    return round(left / rate) if rate > 0 else None
+
+
+def _spawn_map() -> dict:
+    """label -> exit city, from the kit's spawn file."""
+    out = {}
+    try:
+        for ln in open(os.path.join(KITB, "private", "proxies-clean", "z-spawn.txt")):
+            parts = ln.split()
+            if len(parts) >= 3:
+                out[parts[0]] = parts[2]
+    except OSError:
+        pass
+    return out
+
+
+def _device_kind(label: str):
+    """Phone type the wallet presents: 'iPhone iOS 18.7' / 'Android 10'.
+
+    Read from identity_pin.json (address -> ua), which is what the runner
+    actually sends. Falls back to None so the pill simply stays hidden.
+    """
+    try:
+        pins = json.load(open(os.path.join(KITB, "identity_pin.json")))
+    except (OSError, ValueError):
+        return None
+    addr = ADDR_BY_LABEL.get(label)
+    ua = str((pins.get(addr) or {}).get("ua") or "")
+    if "iPhone" in ua and "iPhone OS " in ua:
+        v = ua.split("iPhone OS ")[1].split(" like")[0].replace("_", ".")
+        return "iPhone iOS " + v
+    if "Android" in ua:
+        v = ua.split("Android ")[1].split(";")[0].strip()
+        return "Android " + v
+    return None
+
+
 def opens_left() -> dict:
-    """Remaining opens per wallet today, from each worker's state file."""
+    """Remaining opens per wallet today, for the live run's wallets."""
     left = {}
-    for fn in sorted(os.listdir(KITB)):
-        if not re.match(r"^state_C(0[1-9]|10)\.json$", fn):
+    for label in LIVE_LABELS:
+        st = _run_state(label)
+        if not st:
             continue
-        label = fn[len("state_"):-len(".json")]
-        try:
-            st = json.load(open(os.path.join(KITB, fn)))
-            used = int(st.get("opens_used", 0))
-            left[label] = max(0, 25 - used)
-        except Exception:
-            continue
+        used = int(st.get("opens_used", 0) or 0)
+        left[label] = max(0, DAILY_LIMIT - used)
     return left
 
 
@@ -405,14 +493,33 @@ def build() -> dict:
     # the log only knows "won" lines, and this fleet has never written one while
     # cards were already being credited (see card_watch.py's note). Reading pulls
     # is what makes the Cards tab show who pulled what.
-    cards = cards_from_pulls(addr_by)
-    if not cards:
-        # Nothing credited yet (unswept wins are invisible to the player
-        # record). Fall back to the run's own state files, which carry the
-        # prize the moment it is won.
-        cards = cards_from_states()
+    # Two honest sources, merged by card name:
+    #   player record -> the credited card, with tier/grade/image/day filled in
+    #   state files   -> every won card, including ones the player record
+    #                    cannot see (an unswept win reports pulls: 0)
+    # Neither alone is right: pulls alone lose unswept wins, state files alone
+    # carry tier: null, which is why Rarity was blank.
+    pulls = cards_from_pulls(addr_by)
+    states = cards_from_states()
+    have = {str(c.get("name") or "") for c in pulls}
+    cards = pulls + [c for c in states
+                     if str(c.get("name") or "") not in have]
+    # fill any field the player record left empty from the state-file row
+    by_name = {str(c.get("name") or ""): c for c in states}
+    for c in cards:
+        ref = by_name.get(str(c.get("name") or "")) or {}
+        for f in ("tier", "grade", "day", "image", "addr"):
+            if c.get(f) in (None, "", "—") and ref.get(f) not in (None, "", "—"):
+                c[f] = ref[f]
+    cards.sort(key=lambda c: (c.get("day") or "", c.get("wallet") or ""))
     return {"generated": datetime.datetime.utcnow().isoformat(timespec="seconds") + "Z",
-            "wallets": {str(v): {"label": k, "addr": wmap[k]["addr"]} for k, v in idx.items()},
+            "wallets": {str(v): {"label": k, "addr": wmap[k]["addr"],
+                                  "eta_min": _eta_min(k),
+                                  "limit": DAILY_LIMIT,
+                                  "used": int(_run_state(k).get("opens_used", 0) or 0),
+                                  "loc": _spawn_map().get(k),
+                                  "device": _device_kind(k)}
+                          for k, v in idx.items()},
             "attempts": rows, "cards": cards,
             "opens_left": {str(idx[k]): v for k, v in opens_left().items() if k in idx}}
 
