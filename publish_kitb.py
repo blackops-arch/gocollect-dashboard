@@ -125,21 +125,9 @@ def cards_from_states() -> list:
     for label in sorted(_key_labels()):
         out += _cards_in(os.path.join(KITB, "state_%s.json" % label),
                          label, BATCH_NAME, b2_map.get(label))
-    # batch 1: kept generation, addresses from its own wallets backup
-    b1 = os.path.join(KITB, "private", "retired-keys",
-                      "batch1-state-20261003T151412")
-    try:
-        b1rows = json.load(open(os.path.join(
-            KITB, "private", "retired-keys",
-            "wallets-json-backup-20261003T144952.json")))
-    except (OSError, ValueError):
-        b1rows = []
-    b1_map = _addr_map(b1rows)
-    for fn in sorted(os.listdir(b1)) if os.path.isdir(b1) else []:
-        m = re.match(r"state_([A-Za-z0-9]+)\.json$", fn)
-        if m:
-            out += _cards_in(os.path.join(b1, fn), m.group(1), "batch 1",
-                             b1_map.get(m.group(1)))
+    # Z-run only (Cil 2026-10-04): the retired batch-1 state dir is deliberately
+    # NOT read. Those cards belong to the previous run and their wallets are
+    # swept; including them put old cards back on the live page. Do not re-add.
     return out
 
 
@@ -274,7 +262,9 @@ def cards_from_pulls(addr_by: dict) -> list:
     from the record is the only signal, there is no status field to read.
     """
     targets = [(lbl, BATCH_NAME, a) for lbl, a in addr_by.items()]
-    targets += [(lbl, "batch 1", a) for lbl, a in _batch1_addrs().items()]
+    # Z-run only (Cil 2026-10-04): the previous batch's cards are NOT spliced in.
+    # They were swept to the hub and would otherwise render as approved rows on
+    # a page labelled "Z-run". Do not re-add _batch1_addrs() here.
     out = []
     for label, batch, addr in sorted(targets):
         if not addr:
