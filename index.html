@@ -71,6 +71,13 @@ color:var(--dim);white-space:nowrap;background:rgba(30,37,48,.5)}
 .pill.ok{color:var(--ok);border-color:#2b7a4d}
 .pill.den{color:var(--warn);border-color:#7a6510}
 .pill.draw{color:var(--acc);border-color:#1d4a48}
+.pill.eta{color:var(--acc);border-color:#1d4a48}
+.pill.loc{color:#8fd3ff;border-color:#1d3a4a}
+.pill.dev{color:#c0a8ff;border-color:#322a4a}
+.wbar{height:10px;border-radius:5px;background:#1a2130;overflow:hidden}
+.wbar i{display:block;height:100%;background:linear-gradient(90deg,#38e8d0,#3ddc97)}
+.webar{display:flex;gap:6px;flex-wrap:wrap}
+.wbig small{font-size:15px;font-weight:700;color:var(--dim);font-family:inherit;margin-left:1px}
 .pill.zero{color:var(--ok);border-color:#2b7a4d}
 .pill.bad{color:var(--bad);border-color:#7a2b2b}
 .wfoot{display:flex;justify-content:space-between;align-items:center;gap:8px;
@@ -215,6 +222,8 @@ const glabel=w=>{ const n=+w; return isNaN(n)?String(w):("G"+(n+1)); };
 // spelling so a row and its card agree.
 const walletName=w=>w==null?"—":glabel(w);
 const shortCrate=id=>{const s=String(id==null?"":id);return s||"—";};
+const wmeta=w=>(DATA&&DATA.wallets&&DATA.wallets[String(w)])||{};
+const wLeft=w=>{const m=wmeta(w);return (m.limit!=null&&m.used!=null)?(m.limit-m.used):leftOf(w);};
 const addr=w=>(DATA&&DATA.wallets&&DATA.wallets[String(w)]||{}).addr||"—";
 // Remaining daily opens, from the server's own opensLeft for the wallet live now.
 // Undefined for a wallet with no logged me-line yet.
@@ -315,7 +324,15 @@ function cardsView(){
     return '<div class="wcard" data-w="'+w+'">'
       +'<div class="top"><span class="wname">'+glabel(w)+'</span>'
       +'<span class="waddr">'+esc(addr(w))+'</span></div>'
-      +'<div class="wbig">'+s.n+'<span>attempts</span></div>'
+      +'<div class="wbig">'+wmeta(w).used+'<small>/'+wmeta(w).limit+'</small><span>crates opened</span></div>'
+      +'<div class="wbar"><i style="width:'+(wmeta(w).limit?Math.min(100,100*wmeta(w).used/wmeta(w).limit):0)+'%"></i></div>'
+      +'<div class="webar"><span class="pill eta">'+(function(){
+          const m=wmeta(w); if(m.eta_min===0) return 'done';
+          if(m.eta_min==null) return 'ETA —';
+          const t=m.eta_min<90?m.eta_min+'m':(m.eta_min/60).toFixed(1)+'h';
+          return '⏱ '+t+' left';})()+'</span>'
+      +'<span class="pill loc">📍 '+(wmeta(w).loc||'—')+'</span>'
+      +'<span class="pill dev">📱 '+(wmeta(w).device||'—')+'</span></div>'
       +'<div class="split"><i class="si-ok" style="width:'+okPct+'%"></i>'
       +'<i class="si-den" style="width:'+denPct+'%"></i></div>'
       +'<div class="wpills"><span class="pill ok">accepted '+s.acc+'</span>'
