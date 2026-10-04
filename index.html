@@ -113,6 +113,7 @@ tbody tr:hover{background:rgba(30,37,48,.6)}
 .st-pending{color:var(--warn);border-color:#7a6510;background:rgba(255,203,5,.08)}
 .st-denied{color:var(--bad);border-color:#7a2b2b;background:rgba(255,82,82,.08)}
 .st-cashed{color:var(--acc);border-color:#1d4a48;background:rgba(107,124,255,.1)}
+.st-returned{color:var(--bad);border-color:#7a2b2b;background:rgba(255,82,82,.14);text-decoration:line-through}
 .t-common{color:var(--common)}.t-uncommon{color:var(--uncommon)}
 .t-rare{color:var(--rare)}
 .t-grail{color:var(--grail);font-weight:800;text-shadow:0 0 10px rgba(240,128,48,.55)}
@@ -274,7 +275,7 @@ function sameReasonToday(a){
   return DATA.attempts.filter(b=>dayof(b.at)===d && outcome(b)==="denied" && reason(b)===r).length;
 }
 function lastN(w,n){ return DATA.attempts.filter(a=>a.wallet===w).slice(-n).reverse(); }
-const STCLASS={approved:"st-approved",pending:"st-pending",denied:"st-denied","cashed-out":"st-cashed"};
+const STCLASS={approved:"st-approved",pending:"st-pending",denied:"st-denied","cashed-out":"st-cashed","returned":"st-returned"};
 
 /* ---------- nav ---------- */
 function nav(){
@@ -370,7 +371,7 @@ function cardsPage(){
   $("#hdr").textContent=cs.length+" card(s) · "+money(cs.reduce((s,c)=>s+(c.valueUsd||0),0))+" total";
   const tierPills=Object.entries(byT).sort((a,b)=>b[1]-a[1]).map(([t,n])=>
     '<div class="kpi"><div class="v t-'+esc(t)+'">'+n+'</div><div class="l">'+esc(t)+'</div></div>').join("");
-  const stPills=["approved","pending","denied","cashed-out"].map(s=>
+  const stPills=["approved","pending","denied","cashed-out","returned"].map(s=>
     '<div class="kpi"><div class="v '+(STCLASS[s]||"")+'" style="font-size:15px">'+(byS[s]||0)
     +'</div><div class="l">'+s+'</div></div>').join("");
   const cols=[["wallet","wallet"],["status","status"],["tier","rarity"],["name","card"],

@@ -266,6 +266,12 @@ def cards_from_pulls(addr_by: dict) -> list:
     reuse the labels C01-C10 for different wallets, and the credited cards
     carrying tier/grade live at the previous batch's addresses, so querying
     only the live keys returned no pulls and left Rarity blank.
+
+    A Z-run mint that vanished from its wallet's record is a REVOKED card
+    (returned to vault, e.g. a location-flag clawback) and is carried in
+    `card_watch_state.json` -> `revokes` by the watcher. Those are spliced in
+    here as status "returned" so the page can show them; the absence of a mint
+    from the record is the only signal, there is no status field to read.
     """
     targets = [(lbl, BATCH_NAME, a) for lbl, a in addr_by.items()]
     targets += [(lbl, "batch 1", a) for lbl, a in _batch1_addrs().items()]
@@ -289,6 +295,41 @@ def cards_from_pulls(addr_by: dict) -> list:
                 "image": p.get("image"),
                 "mint": p.get("mint"),
             })
+    out += revoked_cards()
+    return out
+
+
+def revoked_cards() -> list:
+    """Z-run cards the platform clawed back, from the watcher's revoke ledger.
+
+    Written by card_watch.py's revoke pass. Z-run only: the watcher's seen
+    ledger is scoped to the live run, so an old batch's sweep can never be
+    mistaken for a clawback. A row with no mint is skipped — never invent a
+    revoked card.
+    """
+    try:
+        st = json.load(open(os.path.join(KITB, "output", "card_watch_state.json")))
+    except (OSError, ValueError):
+        return []
+    out = []
+    for mint, r in sorted((st.get("revokes") or {}).items()):
+        if not isinstance(r, dict) or not r.get("mint"):
+            continue
+        out.append({
+            "wallet": r.get("label"),
+            "batch": BATCH_NAME,
+            "status": "returned",
+            "tier": r.get("tier"),
+            "name": r.get("name"),
+            "grade": None,
+            "valueUsd": r.get("valueUsd"),
+            "soldUsd": None,
+            "times": None,
+            "day": r.get("day"),
+            "image": None,
+            "mint": r.get("mint"),
+            "detected": r.get("detected_at"),
+        })
     return out
 
 
