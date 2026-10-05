@@ -79,16 +79,6 @@ color:var(--dim);white-space:nowrap;background:rgba(30,37,48,.5)}
 .wbar i{display:block;height:100%;background:linear-gradient(90deg,#38e8d0,#3ddc97)}
 .webar{display:flex;flex-direction:row;flex-wrap:wrap;gap:5px;align-items:center}
 .webar .pill{font-size:11px;padding:3px 9px;background:transparent}
-.histbox{margin-top:14px;border:1px solid var(--line);border-radius:13px;overflow:hidden;background:linear-gradient(180deg,var(--card),#12161d)}
-.histhead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:9px 13px;
- border-bottom:1px solid var(--line);font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim)}
-.histrow{display:flex;align-items:center;gap:8px;padding:7px 13px;font-size:12px;cursor:pointer;
- border-bottom:1px solid rgba(255,255,255,.04)}
-.histrow:last-child{border-bottom:0}
-.histrow:hover{background:rgba(107,124,255,.08)}
-.hlabel{font-family:ui-monospace,Menlo,monospace;font-weight:700;color:var(--acc);min-width:38px}
-.haddr{color:var(--dim);font-size:10.5px}
-.hspacer{flex:1}
 .galbar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:2px 0 12px;padding:9px 12px;
  border:1px solid var(--line);border-radius:11px;background:linear-gradient(180deg,var(--card),#12161d)}
 .galaddr{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--dim)}
@@ -288,21 +278,6 @@ function walletIds(){
   for(const a of DATA.attempts) s.add(a.wallet);
   return [...s].filter(n=>!isNaN(n)).sort((a,b)=>a-b);
 }
-// Retired-round wallets that still hold cards. A card's wallet address survives
-// rotation; its LABEL does not, so the live wallets map cannot name a wallet
-// that a later round retired ("the pull histories are gone", Cil 2026-10-05).
-// Group the cards by address -- one wallet that pulled in two rounds is ONE row
-// -- and expose the retired labels so cardsOf() can find them.
-function histWallets(){
-  const live=new Set(Object.values(DATA.wallets||{}).map(m=>m.addr).filter(Boolean));
-  const by={};
-  for(const c of (DATA.cards||[])){
-    if(!c.addr || live.has(c.addr)) continue;
-    const h=by[c.addr]||(by[c.addr]={addr:c.addr,label:c.wlabel||c.wallet,round:c.round,alive:false});
-    if(c.round && (!h.round || c.round>h.round)) h.round=c.round;
-  }
-  return Object.values(by).sort((a,b)=>String(a.round).localeCompare(String(b.round))||String(a.label).localeCompare(String(b.label)));
-}
 function stats(list){
   const denied=list.filter(a=>outcome(a)==="denied");
   const acc=list.filter(a=>outcome(a)==="success");
@@ -318,9 +293,6 @@ const walletKey=w=>{ const k=(DATA.wallets||{})[w]; return (k&&k.label)||("C"+St
 // back to glabel() only when a row has no label (older payloads / C-run rows).
 const cardName=c=>c.wlabel||glabel(c.wallet);
 function cardsOf(w){ const k=walletKey(w); return (DATA.cards||[]).filter(c=>c.wallet===k||c.wlabel===k); }
-// Cards of a retired wallet, matched on its address (stable) rather than its
-// label (rotates away), so the history stays attached across rounds.
-function cardsOfAddr(a){ return (DATA.cards||[]).filter(c=>c.addr===a); }
 function sameReasonToday(a){
   const d=dayof(a.at), r=reason(a);
   return DATA.attempts.filter(b=>dayof(b.at)===d && outcome(b)==="denied" && reason(b)===r).length;
@@ -343,9 +315,8 @@ function nav(){
 /* ---------- view: wallet cards ---------- */
 function cardsView(){
   const A=winRows(), ids=walletIds(), t=stats(A);
-  const hist=histWallets();
   $("#title").textContent="GoCollect fleet ledger";
-  $("#hdr").textContent=WINLABEL[WIN]+" · "+ids.length+" wallets"+(hist.length?(" + "+hist.length+" retired"):"")+" · "+A.length+" attempts · "+
+  $("#hdr").textContent=WINLABEL[WIN]+" · "+ids.length+" wallets · "+A.length+" attempts · "+
     (A.length?dayof(A[0].at)+" → "+dayof(A[A.length-1].at):"no attempts");
   const tfCol=t.tooFast===0?"var(--ok)":"var(--warn)";
   const nCards=(DATA.cards||[]).length, nVal=(DATA.cards||[]).reduce((s,c)=>s+(c.valueUsd||0),0);
@@ -402,24 +373,9 @@ function cardsView(){
       +'</div>'
       +'</div>';
   }).join("");
-  // Retired-round wallets: a COMPACT strip, not full cards. As full cards they
-  // read as broken live wallets (two rows named "Z19", no ETA) and muddied the
-  // live view (Cil 2026-10-05). One line each: label, round, card count, value.
-  const hstrip=hist.length?('<div class="histbox"><div class="histhead">'
-    +'<span>Retired rounds</span><span class="dim">pull history — one row per wallet address</span></div>'
-    +hist.map(h=>{
-      const myC=cardsOfAddr(h.addr);
-      const val=myC.reduce((s,c)=>s+(c.valueUsd||0),0);
-      return '<div class="histrow" data-addr="'+esc(h.addr)+'">'
-        +'<span class="hlabel">'+esc(h.label)+'</span>'
-        +'<span class="wround">'+esc(h.round||'')+'</span>'
-        +'<span class="haddr mono">'+esc(h.addr)+'</span>'
-        +'<span class="hspacer"></span>'
-        +'<span class="pill draw">cards '+myC.length+'</span>'
-        +'<span class="pill">'+money(val)+'</span>'
-        +'</div>';
-    }).join("")+'</div>'):'';
-  $("#view").innerHTML=kpis+'<div class="wgrid">'+cards+'</div>'+hstrip;
+  // No pull history here: the Cards tab is the one home for cards, so repeating
+  // it as a strip only duplicated it (Cil 2026-10-05).
+  $("#view").innerHTML=kpis+'<div class="wgrid">'+cards+'</div>';
   document.querySelectorAll(".wcard[data-w]").forEach(c=>c.onclick=()=>{
     PICK=+c.dataset.w; OPEN=null; SUB="denials"; render();
   });
@@ -427,10 +383,6 @@ function cardsView(){
   document.querySelectorAll(".galjump[data-gal]").forEach(s=>s.onclick=e=>{
     e.stopPropagation(); GALLERY_ADDR=s.dataset.gal; PAGE="cards"; PICK=null;
     CSORT=["day",-1]; render();
-  });
-  // A retired row opens its address's cards in the gallery (view B).
-  document.querySelectorAll(".histrow[data-addr]").forEach(r=>r.onclick=()=>{
-    GALLERY_ADDR=r.dataset.addr; TAB="cards"; CSORT=["day",-1]; render();
   });
 }
 
@@ -461,7 +413,7 @@ function cardsPage(){
       +'<span class="nm" style="font-weight:700">'+esc(glab)+'</span>'
       +'<span class="galaddr">'+esc(GALLERY_ADDR)+'</span>'
       +(rounds.length?'<span class="wround">'+esc(rounds.join(" · "))+'</span>':'')
-      +'<span class="hspacer"></span>'
+      +'<span style="flex:1"></span>'
       +'<span class="pill draw">cards '+mine.length+'</span>'
       +'<span class="pill">'+money(gv)+'</span></div>'
       +'<div class="cgrid">'+grid+'</div>';
