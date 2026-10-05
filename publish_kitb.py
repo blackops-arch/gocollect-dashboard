@@ -301,6 +301,55 @@ def _round_addr_map(rnd: int) -> dict:
     return out
 
 
+def _enrich_states_from_rounds(states: list) -> None:
+    """Fill tier/grade/image/status on archived cards from their own wallet.
+
+    An archived card's state row has tier: null -- the kit writes the prize the
+    instant the crate opens, before the server classifies it -- and its wallet is
+    retired, so the live pulls query never sees it. The retired wallet still
+    answers /v1/players, so each archived round's wallets are queried once and
+    the matching pull is merged in by card name. Mutates `states` in place.
+
+    Only rows that are still missing a field are enriched, so nothing the kit or
+    a live pull already said is overwritten.
+    """
+    need = [c for c in states if c.get("tier") in (None, "", "—")
+            or c.get("grade") in (None, "", "—")]
+    if not need:
+        return
+    try:
+        rounds = sorted(os.listdir(ARCHIVE_DIR))
+    except OSError:
+        return
+    by_name = {}
+    for rd in rounds:
+        mrd = re.match(r"^r(\d+)$", rd)
+        if not mrd:
+            continue
+        if not os.path.isdir(os.path.join(ARCHIVE_DIR, rd)):
+            continue
+        for label, addr in sorted(_round_addr_map(int(mrd.group(1))).items()):
+            if not addr or any(str(c.get("addr") or "") == addr for c in states
+                               if c.get("addr")):
+                pass  # exact address wins; still query it for completeness
+            for p in pulls_for(addr):
+                n = str(p.get("name") or "")
+                if n and n not in by_name:
+                    by_name[n] = p
+    for c in need:
+        p = by_name.get(str(c.get("name") or ""))
+        if not p:
+            continue
+        for f in ("tier", "grade", "image"):
+            if c.get(f) in (None, "", "—") and p.get(f) not in (None, "", "—"):
+                c[f] = p[f]
+        # A pull means the platform CREDITED the card; the state row's "pending"
+        # is just the hardcoded default for a non-batch-1 row.
+        c["status"] = "cashed-out" if p.get("cashedOut") else "approved"
+        if c.get("valueUsd") in (None, "", 0) and p.get("valueUsd"):
+            c["valueUsd"] = p["valueUsd"]
+
+
 def _cards_from_archive(live_wkey: dict) -> list:
     """Cards still sitting in an archived round dir (engine/r<N>/state_Z*.json).
 
@@ -427,7 +476,8 @@ def _win_index() -> dict:
     return out
 
 
-def _cards_in(path: str, label: str, batch: str, addr=None, wkey=None) -> list:
+def _cards_in(path: str, label: str, batch: str, addr=None, wkey=None,
+              status=None) -> list:
     """Won cards from one state file.
 
     `wkey` is the numeric wallet key the published `wallets` map is filed under
@@ -460,7 +510,7 @@ def _cards_in(path: str, label: str, batch: str, addr=None, wkey=None) -> list:
             # Same words the page already uses (approved/pending): batch 1's
             # four were credited and swept to Cil's hub; C08 is still held by
             # the server, so state files carry no status for either.
-            "status": "approved" if batch == "batch 1" else "pending",
+            "status": status or ("approved" if batch == "batch 1" else "pending"),
             "tier": p.get("tier"),
             "name": p.get("name"),
             "grade": _grade_of(p) or w.get("grade"),
@@ -827,6 +877,12 @@ def build() -> dict:
     # carry tier: null, which is why Rarity was blank.
     pulls = cards_from_pulls(addr_by)
     states = cards_from_states()
+    # Archived rounds are enriched from their OWN round's wallet record. A card
+    # won by a wallet that a later round retired has no live player record to
+    # read, so its state row carries tier: null and the page prints Rarity "—".
+    # The retired wallet still answers /v1/players (verified 2026-10-05), so the
+    # tier/grade are fetched and merged by name.
+    _enrich_states_from_rounds(states)
     # pulls wins a name collision, and its row carries the LABEL ("Z20") where
     # the page needs the numeric wallet key it joins on -- a present-but-wrong
     # value, so a fill-if-empty would never correct it (found 2026-10-05). Assign
