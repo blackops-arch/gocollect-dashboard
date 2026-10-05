@@ -77,8 +77,10 @@ color:var(--dim);white-space:nowrap;background:rgba(30,37,48,.5)}
 .pill.dev{color:#c0a8ff;border-color:#322a4a}
 .wbar{height:10px;border-radius:5px;background:#1a2130;overflow:hidden}
 .wbar i{display:block;height:100%;background:linear-gradient(90deg,#38e8d0,#3ddc97)}
-.webar{display:flex;flex-direction:column;gap:5px;align-items:flex-start}
+.webar{display:flex;flex-direction:row;flex-wrap:wrap;gap:5px;align-items:center}
 .webar .pill{font-size:11px;padding:3px 9px;background:transparent}
+.wcard.retired{opacity:.72}
+.wcard.retired:before{background:linear-gradient(180deg,#6b7280,#374151)}
 .wbig small{font-size:15px;font-weight:700;color:var(--dim);font-family:inherit;margin-left:1px}
 .pill.zero{color:var(--ok);border-color:#2b7a4d}
 .pill.bad{color:var(--bad);border-color:#7a2b2b}
@@ -266,6 +268,21 @@ function walletIds(){
   for(const a of DATA.attempts) s.add(a.wallet);
   return [...s].filter(n=>!isNaN(n)).sort((a,b)=>a-b);
 }
+// Retired-round wallets that still hold cards. A card's wallet address survives
+// rotation; its LABEL does not, so the live wallets map cannot name a wallet
+// that a later round retired ("the pull histories are gone", Cil 2026-10-05).
+// Group the cards by address -- one wallet that pulled in two rounds is ONE row
+// -- and expose the retired labels so cardsOf() can find them.
+function histWallets(){
+  const live=new Set(Object.values(DATA.wallets||{}).map(m=>m.addr).filter(Boolean));
+  const by={};
+  for(const c of (DATA.cards||[])){
+    if(!c.addr || live.has(c.addr)) continue;
+    const h=by[c.addr]||(by[c.addr]={addr:c.addr,label:c.wlabel||c.wallet,round:c.round,alive:false});
+    if(c.round && (!h.round || c.round>h.round)) h.round=c.round;
+  }
+  return Object.values(by).sort((a,b)=>String(a.round).localeCompare(String(b.round))||String(a.label).localeCompare(String(b.label)));
+}
 function stats(list){
   const denied=list.filter(a=>outcome(a)==="denied");
   const acc=list.filter(a=>outcome(a)==="success");
@@ -281,6 +298,9 @@ const walletKey=w=>{ const k=(DATA.wallets||{})[w]; return (k&&k.label)||("C"+St
 // back to glabel() only when a row has no label (older payloads / C-run rows).
 const cardName=c=>c.wlabel||glabel(c.wallet);
 function cardsOf(w){ const k=walletKey(w); return (DATA.cards||[]).filter(c=>c.wallet===k||c.wlabel===k); }
+// Cards of a retired wallet, matched on its address (stable) rather than its
+// label (rotates away), so the history stays attached across rounds.
+function cardsOfAddr(a){ return (DATA.cards||[]).filter(c=>c.addr===a); }
 function sameReasonToday(a){
   const d=dayof(a.at), r=reason(a);
   return DATA.attempts.filter(b=>dayof(b.at)===d && outcome(b)==="denied" && reason(b)===r).length;
@@ -303,8 +323,9 @@ function nav(){
 /* ---------- view: wallet cards ---------- */
 function cardsView(){
   const A=winRows(), ids=walletIds(), t=stats(A);
+  const hist=histWallets();
   $("#title").textContent="GoCollect fleet ledger";
-  $("#hdr").textContent=WINLABEL[WIN]+" · "+ids.length+" wallets · "+A.length+" attempts · "+
+  $("#hdr").textContent=WINLABEL[WIN]+" · "+ids.length+" wallets"+(hist.length?(" + "+hist.length+" retired"):"")+" · "+A.length+" attempts · "+
     (A.length?dayof(A[0].at)+" → "+dayof(A[A.length-1].at):"no attempts");
   const tfCol=t.tooFast===0?"var(--ok)":"var(--warn)";
   const nCards=(DATA.cards||[]).length, nVal=(DATA.cards||[]).reduce((s,c)=>s+(c.valueUsd||0),0);
@@ -357,8 +378,26 @@ function cardsView(){
       +'<div class="wfoot"><span>'+ago(last)+'</span><span class="dim">view →</span></div>'
       +'</div>';
   }).join("");
-  $("#view").innerHTML=kpis+'<div class="wgrid">'+cards+'</div>';
-  document.querySelectorAll(".wcard").forEach(c=>c.onclick=()=>{
+  // Retired-round wallets, rendered after the live ones so a pull that survives
+  // rotation stays visible. No ETA/used/left: those are live-run fields.
+  const hcards=hist.map(h=>{
+    const myC=cardsOfAddr(h.addr);
+    const mini=myC.slice(0,3).map(c=>
+      '<div class="minicard">'+(c.image?'<img src="'+esc(c.image)+'" loading="lazy" alt="">':'')
+      +'<span class="t-'+esc(c.tier||"empty")+'">'+esc(c.name||c.tier||"card")+'</span></div>').join("")
+      +(myC.length>3?'<div class="minicard"><span class="dim">+'+(myC.length-3)+' more</span></div>':"");
+    return '<div class="wcard retired">'
+      +'<div class="top"><span class="wname">'+esc(h.label)+'</span>'
+      +'<span class="wround">'+esc(h.round||'')+'</span>'
+      +'<span class="waddr">'+esc(h.addr)+'</span></div>'
+      +'<div class="webar"><span class="pill">retired</span>'
+      +'<span class="pill draw">cards '+myC.length+'</span></div>'
+      +(mini?'<div class="minicards">'+mini+'</div>':'')
+      +'<div class="wfoot"><span class="dim">history</span></div>'
+      +'</div>';
+  }).join("");
+  $("#view").innerHTML=kpis+'<div class="wgrid">'+cards+hcards+'</div>';
+  document.querySelectorAll(".wcard[data-w]").forEach(c=>c.onclick=()=>{
     PICK=+c.dataset.w; OPEN=null; SUB="denials"; render();
   });
 }
