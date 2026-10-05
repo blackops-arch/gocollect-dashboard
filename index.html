@@ -218,7 +218,13 @@ const message=a=>"HTTP "+a.status+" · POST /v1/crates/"+(a.crate_id||"")+"/open
 // A wallet arrives either as a numeric index (attempts) or as a key-file
 // label like "C08" (cards). Labels pass through unchanged; an index maps to
 // its 1-based G-number. "G"+(+"C08"+1) was NaN, which printed GNaN.
-const glabel=w=>{ const n=+w; return isNaN(n)?String(w):("G"+(n+1)); };
+// Prefer the label the payload carries for this key (wallets[key].label, e.g.
+// "Z20") over the legacy G-number: the Wallet tab iterates numeric keys, so
+// without this every live wallet renders as "G1".."G5" regardless of its real
+// label (found 2026-10-05; Cil: "Still G1 in public dashboard"). Rows arriving
+// with a non-numeric wallet keep their own string; the G-number remains only as
+// a last resort for keys the wallets map does not cover.
+const glabel=w=>{ const k=(DATA&&DATA.wallets&&DATA.wallets[String(w)])||null; if(k&&k.label) return k.label; const n=+w; return isNaN(n)?String(w):("G"+(n+1)); };
 // Wallet label for the flat all-wallets tables. The ledger keys a row by wallet
 // NUMBER (1..N) while the card view labels the same wallet "G<n>"; use the same
 // spelling so a row and its card agree.

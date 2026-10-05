@@ -631,6 +631,16 @@ def build() -> dict:
     # carry tier: null, which is why Rarity was blank.
     pulls = cards_from_pulls(addr_by)
     states = cards_from_states()
+    # pulls wins a name collision, and its row carries the LABEL ("Z20") where
+    # the page needs the numeric wallet key it joins on -- a present-but-wrong
+    # value, so a fill-if-empty would never correct it (found 2026-10-05). Assign
+    # both fields from the state row unconditionally.
+    by_name_states = {str(c.get("name") or ""): c for c in states}
+    for c in pulls:
+        ref = by_name_states.get(str(c.get("name") or "")) or {}
+        for f in ("wallet", "wlabel"):
+            if ref.get(f) not in (None, ""):
+                c[f] = ref[f]
     have = {str(c.get("name") or "") for c in pulls}
     cards = pulls + [c for c in states
                      if str(c.get("name") or "") not in have]
@@ -638,7 +648,7 @@ def build() -> dict:
     by_name = {str(c.get("name") or ""): c for c in states}
     for c in cards:
         ref = by_name.get(str(c.get("name") or "")) or {}
-        for f in ("tier", "grade", "day", "image", "addr"):
+        for f in ("tier", "grade", "day", "image", "addr", "wallet", "wlabel"):
             if c.get(f) in (None, "", "—") and ref.get(f) not in (None, "", "—"):
                 c[f] = ref[f]
     cards.sort(key=lambda c: (c.get("day") or "", c.get("wallet") or ""))
