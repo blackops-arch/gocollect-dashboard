@@ -384,12 +384,13 @@ function cardsPage(){
   const stPills=["approved","pending","denied","cashed-out","returned"].map(s=>
     '<div class="kpi"><div class="v '+(STCLASS[s]||"")+'" style="font-size:15px">'+(byS[s]||0)
     +'</div><div class="l">'+s+'</div></div>').join("");
-  const cols=[["wallet","wallet"],["status","status"],["tier","rarity"],["name","card"],
+  const cols=[["wallet","wallet"],["round","round"],["status","status"],["tier","rarity"],["name","card"],
               ["grade","grade"],["valueUsd","value"],["day","pulled"]];
   const thead=cols.map(([f,l])=>'<th data-f="'+f+'" class="'+(f===k?"sel":"")+'">'+l
     +(f===k?' <span class="ar">'+(dir<0?"▼":"▲")+'</span>':'')+'</th>').join("");
   const body=cs.length?cs.map((c,i)=>
     '<tr data-c="'+i+'"><td class="mono">'+esc(c.addr||c.wallet)+'</td>'
+    +'<td>'+esc(c.round||"—")+'</td>'
     +'<td><span class="badge '+(STCLASS[c.status]||"")+'">'+esc(c.status)+'</span></td>'
     +'<td class="t-'+esc(c.tier||"empty")+'">'+esc(c.tier||"—")+'</td>'
     +'<td>'+esc(c.name||"—")+'</td><td>'+esc(c.grade||"—")+'</td>'
@@ -539,6 +540,7 @@ function cardDetail(c){
     +'<dl>'
     +'<dt>Wallet</dt><dd>'+esc(cardName(c))+' · '+esc(addr(c.wallet))+'</dd>'
     +'<dt>Rarity</dt><dd>'+esc(c.tier||"—")+'</dd>'
+    +'<dt>Round</dt><dd>'+esc(c.round||"—")+'</dd>'
     +'<dt>Status</dt><dd>'+esc(c.status)+'</dd>'
     +'<dt>Grade</dt><dd>'+esc(c.grade||"—")+'</dd>'
     +'<dt>Value</dt><dd>'+money(c.valueUsd)+'</dd>'

@@ -34,6 +34,66 @@ REPO = os.path.dirname(os.path.abspath(__file__))
 KITB = "/home/bluey/gocollect-25open"
 LEDGER = os.path.join(KITB, "output", "farm_loop.jsonl")
 OUTPUT = os.path.join(KITB, "output")
+# Rotation state files. `doneAt` is the epoch end-of-rotation stamp; the round a
+# card belongs to is the FIRST rotation whose window it falls in, and a window
+# runs from the previous rotation's doneAt to this one's.
+ROTATIONS_DIR = "/home/bluey/gocollect-rotation-z/rotations"
+
+
+def _round_windows() -> list:
+    """[(round_label, start_epoch, end_epoch)] oldest first.
+
+    A card won after the newest rotation's doneAt has no next round yet, so it
+    is stamped with the newest round's label as "R<N> (live)" by the caller.
+    Returns [] on any failure: the round stamp is decorative, and losing it must
+    never take the whole publish run down with it.
+    """
+    try:
+        out = []
+        for fn in os.listdir(ROTATIONS_DIR):
+            m = re.match(r"^Z-R(\d+)\.json$", fn)
+            if not m:
+                continue
+            with open(os.path.join(ROTATIONS_DIR, fn)) as fh:
+                d = json.load(fh)
+            if d.get("phase") != "done":
+                continue
+            at = d.get("doneAt")
+            if not at:
+                continue
+            out.append(("R%s" % m.group(1), float(at)))
+    except OSError:
+        return []
+    out.sort(key=lambda r: r[1])
+    # turn the end-stamps into [start, end] windows
+    return [(lab, out[i - 1][1] if i else 0.0, end)
+            for i, (lab, end) in enumerate(out)]
+
+
+def _round_of(at_iso: str):
+    """Round label for a card won at this ISO time, or None if unknown.
+
+    The rotation state file is the only place a round boundary is recorded, and
+    `new`/`old` hold the SAME labels in some rounds (R5 and R6 both list
+    Z16..Z20), so the label alone cannot identify a round -- only the win time
+    can (Cil 2026-10-05).
+    """
+    if not at_iso:
+        return None
+    try:
+        t = datetime.datetime.strptime(str(at_iso)[:19], "%Y-%m-%dT%H:%M:%S")
+        t = t.replace(tzinfo=datetime.timezone.utc).timestamp()
+    except ValueError:
+        return None
+    w = _round_windows()
+    if not w:
+        return None
+    if t > w[-1][2]:
+        return "%s (live)" % w[-1][0]
+    for lab, start, end in w:
+        if start <= t <= end:
+            return lab
+    return None
 DATA_BRANCH = "data"
 PUBLISH_PATH = "ledger.json"
 API = "https://api.github.com/repos/blackops-arch/gocollect-dashboard/contents"
@@ -230,6 +290,11 @@ def _win_index() -> dict:
                 out[name] = {
                     "day": str(r.get("at") or "")[:10] or None,
                     "grade": m.group(1) if m else None,
+                    # Keep the full win time, not just its date: the round stamp
+                    # needs the hour to bucket against a rotation boundary, and
+                    # prizes won before the kit recorded their own `at` can only
+                    # be dated from here (Cil 2026-10-05).
+                    "at": r.get("at"),
                 }
     except OSError:
         pass
@@ -277,6 +342,11 @@ def _cards_in(path: str, label: str, batch: str, addr=None, wkey=None) -> list:
             "soldUsd": None,
             "times": None,
             "day": w.get("day"),
+            # Which rotation this card was won in. Read from the prize's own
+            # win time; older prizes predate that field, so fall back to the
+            # ledger win record keyed by the same card name. Decorative only:
+            # a missing stamp must never drop the card.
+            "round": _round_of(p.get("at") or w.get("at")),
             "image": None,
             "mint": p.get("crate"),
             "prizeId": p.get("prizeId"),
@@ -638,7 +708,7 @@ def build() -> dict:
     by_name_states = {str(c.get("name") or ""): c for c in states}
     for c in pulls:
         ref = by_name_states.get(str(c.get("name") or "")) or {}
-        for f in ("wallet", "wlabel"):
+        for f in ("wallet", "wlabel", "round", "day"):
             if ref.get(f) not in (None, ""):
                 c[f] = ref[f]
     have = {str(c.get("name") or "") for c in pulls}
