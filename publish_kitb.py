@@ -38,6 +38,37 @@ OUTPUT = os.path.join(KITB, "output")
 # card belongs to is the FIRST rotation whose window it falls in, and a window
 # runs from the previous rotation's doneAt to this one's.
 ROTATIONS_DIR = "/home/bluey/gocollect-rotation-z/rotations"
+# Where a rotation MOVES the finished round's state files. A retired round's
+# card lives only here once the next round reuses its label (Cil 2026-10-05).
+ARCHIVE_DIR = "/home/bluey/gocollect-rotation-z/engine"
+# The engine's own wallet map: live block + every retired wallet keyed
+# "<LABEL>-R<N>". It is the one place that says which round a wallet belonged
+# to, which is how a card is attributed exactly (no clock guesswork).
+ENGINE_WALLETS = "/home/bluey/gocollect-rotation-z/wallets.json"
+
+
+def _round_by_addr(addr: str):
+    """Round label for a wallet address, from the engine's live + retired maps."""
+    if not addr:
+        return None
+    try:
+        with open(ENGINE_WALLETS) as fh:
+            W = json.load(fh)
+    except (OSError, ValueError):
+        return None
+    ws = W.get("wallets") or {}
+    for lab, e in ws.items():
+        if isinstance(e, dict) and e.get("address") == addr:
+            m = re.search(r"-R(\d+)$", str(e.get("ledgerName") or ""))
+            if m:
+                return "R%s" % m.group(1)
+    for key, e in (W.get("retired") or {}).items():
+        a = e.get("address") if isinstance(e, dict) else e
+        if a == addr:
+            m = re.search(r"-R(\d+)$", str(key))
+            if m:
+                return "R%s" % m.group(1)
+    return None
 
 
 def _round_windows() -> list:
@@ -70,14 +101,19 @@ def _round_windows() -> list:
             for i, (lab, end) in enumerate(out)]
 
 
-def _round_of(at_iso: str):
-    """Round label for a card won at this ISO time, or None if unknown.
+def _round_of(at_iso: str, addr: str = None):
+    """Round label for a card, preferring the wallet that actually won it.
 
-    The rotation state file is the only place a round boundary is recorded, and
-    `new`/`old` hold the SAME labels in some rounds (R5 and R6 both list
-    Z16..Z20), so the label alone cannot identify a round -- only the win time
-    can (Cil 2026-10-05).
+    The address is exact: the engine's retired map keys every past wallet as
+    <LABEL>-R<N>, so the round comes straight from the wallet. The timestamp is
+    only a fallback, because a boundary window is off by one rotation -- R6's
+    wallets keep running until R7 COMMITS, so a win in that gap sits inside R7's
+    window while the winning wallet is still R6's (caught on the Luffy card,
+    2026-10-05). Never let the clock overrule the address.
     """
+    rnd = _round_by_addr(addr)
+    if rnd:
+        return rnd
     if not at_iso:
         return None
     try:
@@ -105,7 +141,30 @@ WALLET_RE = re.compile(r"^Z(?:0[1-9]|[12][0-9])\.key$")
 # The live Z run is the batch the page is labelled with. The C keys are emptied
 # and the S keys are tainted, so neither may appear on the public page
 # (Cil 2026-10-04).
-LIVE_LABELS = ("Z16", "Z17", "Z18", "Z19", "Z20")
+#
+# The block is READ from the engine's wallet map, not hardcoded: labels advance
+# every round now (R7 Z16-Z20, R8 Z21-Z25 -- Cil 2026-10-05), so a frozen tuple
+# would silently stop tracking the moment the next rotation lands. The wallet
+# map is the engine's own file, which the rotation writes in the same step that
+# flips the labels, so this follows automatically.
+#
+# Fallback is the anchor block, so a missing/odd wallet map degrades to "track
+# what we tracked yesterday" instead of "track nothing".
+ENGINE_WALLETS = "/home/bluey/gocollect-rotation-z/wallets.json"
+Z_ANCHOR_LABELS = ("Z16", "Z17", "Z18", "Z19", "Z20")
+
+
+def _live_z_labels() -> tuple:
+    try:
+        with open(ENGINE_WALLETS) as fh:
+            ws = (json.load(fh).get("wallets") or {})
+        labs = tuple(sorted(l for l in ws if re.match(r"^Z\d\d$", l)))
+        return labs or Z_ANCHOR_LABELS
+    except (OSError, ValueError):
+        return Z_ANCHOR_LABELS
+
+
+LIVE_LABELS = _live_z_labels()
 BATCH_NAME = "Z-run"
 
 # Every Z round is read, so a card won in one round is never dropped from the
@@ -201,6 +260,14 @@ def cards_from_states() -> list:
         out += _cards_in(os.path.join(KITB, "state_%s.json" % label),
                          label, BATCH_NAME, b2_map.get(label),
                          wkey=live_wkey[label])
+    # Archived rounds. A rotation MOVES state_<LABEL>.json into its round dir
+    # (engine/r6/state_Z20.json), so when the next round reuses a label the
+    # retired round's card is no longer in the live file -- r6's Luffy vanished
+    # from the page at R7's commit (2026-10-05). The comment below says a retired
+    # label "keeps its file"; that held only while labels were never reused.
+    # Reading the round dirs restores those cards. Labels advance from R8 on, but
+    # the archive is read regardless so it keeps working either way.
+    out += _cards_from_archive(live_wkey)
     # Older C/batch-1 state is deliberately NOT read: those cards sit on swept
     # wallets and need name-matching to resolve (Cil 2026-10-05).
     #
@@ -210,6 +277,40 @@ def cards_from_states() -> list:
     # History across rotations is preserved simply by reading every Z label that
     # still has a state file -- a retired label keeps its file, so its cards
     # stay on the page after the next rotation replaces LIVE_LABELS.
+    return out
+
+
+def _cards_from_archive(live_wkey: dict) -> list:
+    """Cards still sitting in an archived round dir (engine/r<N>/state_Z*.json).
+
+    A rotation moves each live state file into its round directory, so a card won
+    in a round whose labels were later reused exists only here. Each archived
+    label is joined to the wallet key of the SAME label when it is still live;
+    otherwise the card keeps its label and the page falls back to that label's
+    own row. Deduped by (name, wallet) so overlapping archives cannot double it.
+    """
+    seen, out = set(), []
+    for enc_root in (ARCHIVE_DIR,):
+        try:
+            rounds = sorted(os.listdir(enc_root))
+        except OSError:
+            continue
+        for rd in rounds:
+            rd_dir = os.path.join(enc_root, rd)
+            if not os.path.isdir(rd_dir):
+                continue
+            for fn in sorted(os.listdir(rd_dir)):
+                m = re.match(r"^state_(Z\d\d)\.json$", fn)
+                if not m:
+                    continue
+                label = m.group(1)
+                for c in _cards_in(os.path.join(rd_dir, fn), label, BATCH_NAME,
+                                   None, wkey=live_wkey.get(label)):
+                    key = (str(c.get("name") or ""), str(c.get("wallet") or ""))
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    out.append(c)
     return out
 
 
