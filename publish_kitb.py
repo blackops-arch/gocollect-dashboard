@@ -41,11 +41,23 @@ PLAYER = "https://gocollect.fun/v1/players/%s"
 
 # The page is PUBLIC. Wallet addresses never leave unmasked.
 ADDR_RE = re.compile(r"\b[1-9A-HJ-NP-Za-km-z]{32,44}\b")
-WALLET_RE = re.compile(r"^Z(?:0[1-9]|10)\.key$")
-# Only the live Z run is published. The C keys are emptied and the S keys are
-# tainted, so neither may appear on the public page (Cil 2026-10-04).
-LIVE_LABELS = ("Z01", "Z02", "Z03", "Z04", "Z05")
+WALLET_RE = re.compile(r"^Z(?:0[1-9]|[12][0-9])\.key$")
+# The live Z run is the batch the page is labelled with. The C keys are emptied
+# and the S keys are tainted, so neither may appear on the public page
+# (Cil 2026-10-04).
+LIVE_LABELS = ("Z16", "Z17", "Z18", "Z19", "Z20")
 BATCH_NAME = "Z-run"
+
+# Every Z round is read, so a card won in one round is never dropped from the
+# page when the next rotation replaces the live labels (Cil 2026-10-05:
+# "keep the card pulled history from previous batch intact dont delete it").
+# Scoped to the Z run only: the older C/batch-1 cards sit on swept wallets and
+# need name-matching to resolve, so they stay excluded (Cil 2026-10-05).
+# The rotation states carry each round's own label -> address map, which is
+# what keeps a reused label (Z16 in both R5 and R6) pointing at the right
+# wallet for that round's cards.
+ROTATIONS_DIR = "/home/bluey/gocollect-rotation-z/rotations"
+Z_LABEL_RE = re.compile(r"^Z\d\d$")
 DAILY_LIMIT = 25          # opens per wallet per day
 
 # label -> full address, for looking up each wallet's pinned device identity.
@@ -122,12 +134,22 @@ def cards_from_states() -> list:
     except (OSError, ValueError):
         b2 = []
     b2_map = _addr_map(b2)
-    for label in sorted(_key_labels()):
+    live_keys = _key_labels()
+    live_order = sorted(live_keys)
+    live_wkey = {label: str(i) for i, label in enumerate(live_order)}
+    for label in live_order:
         out += _cards_in(os.path.join(KITB, "state_%s.json" % label),
-                         label, BATCH_NAME, b2_map.get(label))
-    # Z-run only (Cil 2026-10-04): the retired batch-1 state dir is deliberately
-    # NOT read. Those cards belong to the previous run and their wallets are
-    # swept; including them put old cards back on the live page. Do not re-add.
+                         label, BATCH_NAME, b2_map.get(label),
+                         wkey=live_wkey[label])
+    # Older C/batch-1 state is deliberately NOT read: those cards sit on swept
+    # wallets and need name-matching to resolve (Cil 2026-10-05).
+    #
+    # Every Z round is NOT walked separately: a state_<LABEL>.json file holds
+    # that wallet's whole history, not one round's, so re-reading it once per
+    # round emitted the same card several times (caught in dry-run 2026-10-05).
+    # History across rotations is preserved simply by reading every Z label that
+    # still has a state file -- a retired label keeps its file, so its cards
+    # stay on the page after the next rotation replaces LIVE_LABELS.
     return out
 
 
@@ -137,6 +159,42 @@ def _key_labels() -> set:
         return {lbl for lbl in LIVE_LABELS if (lbl + ".key") in have}
     except OSError:
         return set()
+
+
+def _z_round_wallets() -> list:
+    """[(label, batch_name, address)] for every Z round still on disk.
+
+    Reads the engine's rotation states (Z-R<N>.json -> "old"/"new"), which give
+    each round its own label -> address map. "new" is tagged as the round it
+    belongs to, "old" as that same round's outgoing set; a wallet that appears in
+    two rounds is emitted twice, each with that round's address, so a card is
+    never attributed to the wrong wallet. Only Z labels are emitted — the C/S
+    keys never reach the public page (Cil 2026-10-04).
+    """
+    out = []
+    try:
+        names = os.listdir(ROTATIONS_DIR)
+    except OSError:
+        return out
+    for name in names:
+        m = re.match(r"^Z-R(\d+)\.json$", name)
+        if not m:
+            continue
+        try:
+            st = json.load(open(os.path.join(ROTATIONS_DIR, name)))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(st, dict):
+            continue
+        rnd = m.group(1)
+        # A round's "new" set is the batch after that rotation; "old" is the set
+        # it replaced. Both belong to that round's history.
+        for key, tag in (("new", "R%s" % rnd), ("old", "R%s (in)" % rnd)):
+            for label, addr in sorted((st.get(key) or {}).items()):
+                if not Z_LABEL_RE.match(str(label)) or not addr:
+                    continue
+                out.append((label, "%s %s" % (BATCH_NAME, tag), addr))
+    return out
 
 
 GRADE_RE = re.compile(
@@ -178,7 +236,17 @@ def _win_index() -> dict:
     return out
 
 
-def _cards_in(path: str, label: str, batch: str, addr=None) -> list:
+def _cards_in(path: str, label: str, batch: str, addr=None, wkey=None) -> list:
+    """Won cards from one state file.
+
+    `wkey` is the numeric wallet key the published `wallets` map is filed under
+    ("0".."4"). The page joins cards to wallets with `c.wallet === walletKey(i)`,
+    where walletKey(i) resolves to that map's *label* — so a card left carrying
+    only a label is dropped from its wallet row and falls through to the
+    numeric fallback, which prints "G1" (found 2026-10-05; Cil: "the label in
+    dashboard still ambiguous"). Emitting the numeric key keeps the join
+    working; `wlabel` carries the human label for display.
+    """
     try:
         with open(path) as fh:
             st = json.load(fh)
@@ -189,7 +257,13 @@ def _cards_in(path: str, label: str, batch: str, addr=None) -> list:
     for p in st.get("prizes") or []:
         w = wins.get(str(p.get("name") or "")) or {}
         out.append({
-            "wallet": label,
+            # Numeric key first: the page joins cards to wallets with
+            # `c.wallet === walletKey(i)`, and walletKey(i) is the wallets map's
+            # label. Without the numeric key the card is orphaned and prints
+            # "G1" (found 2026-10-05). `wkey` is filled in by the caller, which
+            # knows this wallet's index in the published wallets map.
+            "wallet": wkey if wkey is not None else label,
+            "wlabel": label,
             "batch": batch,
             "addr": addr,          # this card's OWN wallet (batch-specific)
             # Same words the page already uses (approved/pending): batch 1's
@@ -331,6 +405,26 @@ def _run_state(label: str) -> dict:
         return {}
 
 
+def _run_used(label: str) -> int:
+    """Crates opened in the wallet's CURRENT run, capped at the daily limit.
+
+    opens_used accumulates across the day's runs, so after the 07:00 WIB reset
+    the extra run pushes it past DAILY_LIMIT (26/25, 27/25 on the public page).
+    The runner's own log marks the restart with `#extra-run <ts>`; count only
+    [open]/[WIN] lines after the last marker, falling back to opens_used when
+    the marker is absent (first run of the day).
+    """
+    try:
+        text = open(os.path.join(KITB, "claim_%s.log" % label)).read()
+        mark = text.rfind("#extra-run ")
+        if mark != -1:
+            text = text[mark:]
+            n = len(re.findall(r"^\[(?:open\] empty|WIN)", text, re.M))
+            return min(n, DAILY_LIMIT)
+    except OSError:
+        pass
+    return min(int(_run_state(label).get("opens_used", 0) or 0), DAILY_LIMIT)
+
 def _eta_min(label: str):
     """Minutes to finish the daily quota, from the state file's own open_times."""
     st = _run_state(label)
@@ -349,13 +443,18 @@ def _eta_min(label: str):
 
 
 def _spawn_map() -> dict:
-    """label -> exit city, from the kit's spawn file."""
+    """label -> spawn city, from the kit's spawn file.
+
+    z-spawn.txt lines are `<label> <city> <lat>,<lng>`. Only the city is published:
+    the coordinates are the simulated walk position, and the public page a Cil reads
+    wants "Seoul", not "1.35024,103.85250".
+    """
     out = {}
     try:
         for ln in open(os.path.join(KITB, "private", "proxies-clean", "z-spawn.txt")):
             parts = ln.split()
-            if len(parts) >= 3:
-                out[parts[0]] = parts[2]
+            if len(parts) >= 2:
+                out[parts[0]] = parts[1]
     except OSError:
         pass
     return out
@@ -547,7 +646,7 @@ def build() -> dict:
             "wallets": {str(v): {"label": k, "addr": wmap[k]["addr"],
                                   "eta_min": _eta_min(k),
                                   "limit": DAILY_LIMIT,
-                                  "used": int(_run_state(k).get("opens_used", 0) or 0),
+                                  "used": _run_used(k),
                                   "loc": _spawn_map().get(k),
                                   "device": _device_kind(k)}
                           for k, v in idx.items()},

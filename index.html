@@ -269,7 +269,11 @@ function stats(list){
 // Cards carry the key-file label ("C06"); the Wallet tab iterates numeric keys.
 // Compare on one normalised form so both sides match.
 const walletKey=w=>{ const k=(DATA.wallets||{})[w]; return (k&&k.label)||("C"+String(+w+1).padStart(2,"0")); };
-function cardsOf(w){ const k=walletKey(w); return (DATA.cards||[]).filter(c=>c.wallet===k); }
+// Cards now carry the numeric wallet key (so the join below works), with the
+// human label beside it in `wlabel`. Prefer the label for display, and fall
+// back to glabel() only when a row has no label (older payloads / C-run rows).
+const cardName=c=>c.wlabel||glabel(c.wallet);
+function cardsOf(w){ const k=walletKey(w); return (DATA.cards||[]).filter(c=>c.wallet===k||c.wlabel===k); }
 function sameReasonToday(a){
   const d=dayof(a.at), r=reason(a);
   return DATA.attempts.filter(b=>dayof(b.at)===d && outcome(b)==="denied" && reason(b)===r).length;
@@ -527,7 +531,7 @@ function cardDetail(c){
     +'<span class="badge '+(STCLASS[c.status]||"")+'">'+esc(c.status)+'</span> '
     +'<span class="pill t-'+esc(c.tier||"empty")+'">'+esc(c.tier||"—")+'</span>'
     +'<dl>'
-    +'<dt>Wallet</dt><dd>'+glabel(c.wallet)+' · '+esc(addr(c.wallet))+'</dd>'
+    +'<dt>Wallet</dt><dd>'+esc(cardName(c))+' · '+esc(addr(c.wallet))+'</dd>'
     +'<dt>Rarity</dt><dd>'+esc(c.tier||"—")+'</dd>'
     +'<dt>Status</dt><dd>'+esc(c.status)+'</dd>'
     +'<dt>Grade</dt><dd>'+esc(c.grade||"—")+'</dd>'
