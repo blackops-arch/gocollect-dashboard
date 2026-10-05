@@ -79,8 +79,26 @@ color:var(--dim);white-space:nowrap;background:rgba(30,37,48,.5)}
 .wbar i{display:block;height:100%;background:linear-gradient(90deg,#38e8d0,#3ddc97)}
 .webar{display:flex;flex-direction:row;flex-wrap:wrap;gap:5px;align-items:center}
 .webar .pill{font-size:11px;padding:3px 9px;background:transparent}
-.wcard.retired{opacity:.72}
-.wcard.retired:before{background:linear-gradient(180deg,#6b7280,#374151)}
+.histbox{margin-top:14px;border:1px solid var(--line);border-radius:13px;overflow:hidden;background:linear-gradient(180deg,var(--card),#12161d)}
+.histhead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:9px 13px;
+ border-bottom:1px solid var(--line);font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim)}
+.histrow{display:flex;align-items:center;gap:8px;padding:7px 13px;font-size:12px;cursor:pointer;
+ border-bottom:1px solid rgba(255,255,255,.04)}
+.histrow:last-child{border-bottom:0}
+.histrow:hover{background:rgba(107,124,255,.08)}
+.hlabel{font-family:ui-monospace,Menlo,monospace;font-weight:700;color:var(--acc);min-width:38px}
+.haddr{color:var(--dim);font-size:10.5px}
+.hspacer{flex:1}
+.galbar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:2px 0 12px;padding:9px 12px;
+ border:1px solid var(--line);border-radius:11px;background:linear-gradient(180deg,var(--card),#12161d)}
+.galaddr{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--dim)}
+.galimg{display:block;width:100%;aspect-ratio:1;object-fit:cover;background:#2a3168;border-radius:11px 11px 0 0}
+.haul{display:inline-flex;align-items:center;gap:6px;margin-left:auto;padding:3px 11px;border-radius:99px;
+ border:1px solid #1d4a48;background:rgba(56,232,208,.07);font-size:12px;white-space:nowrap}
+.haul b{color:var(--acc);font-family:ui-monospace,Menlo,monospace}
+.haul .hlabel{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim)}
+.galjump{cursor:pointer}
+.galjump:hover{color:var(--acc)}
 .wbig small{font-size:15px;font-weight:700;color:var(--dim);font-family:inherit;margin-left:1px}
 .pill.zero{color:var(--ok);border-color:#2b7a4d}
 .pill.bad{color:var(--bad);border-color:#7a2b2b}
@@ -185,6 +203,7 @@ footer{color:var(--dim);font-size:11px;padding:16px;border-top:1px solid var(--l
   <h1 id="title">GoCollect fleet ledger</h1>
   <span class="dim" id="hdr">–</span>
   <span class="dim" id="upd">–</span>
+  <span class="haul" id="haul"></span>
   <div class="wfilter" id="wins" role="group" aria-label="time window">
     <span class="dim">window</span>
     <button class="tab" data-w="1h">1h</button>
@@ -207,7 +226,8 @@ const $=s=>document.querySelector(s);
 const WIN_MS={"1h":3600e3,"6h":6*3600e3,"24h":24*3600e3,"all":Infinity};
 const WINLABEL={"1h":"last hour","6h":"last 6h","24h":"last 24h","all":"all time"};
 let DATA=null, WIN="24h", PAGE="wallets", PICK=null, SUB="denials", CSORT=["valueUsd",-1],
-    OPEN=null, SORT={denials:["at",-1],opens:["at",-1],all:["at",-1]};
+    OPEN=null, SORT={denials:["at",-1],opens:["at",-1],all:["at",-1]},
+    GALLERY_ADDR=null;   // Cards tab narrowed to one wallet address (retired rows, wallet cards)
 
 /* ---------- derived fields (per spec) ---------- */
 const outcome=a=>a.status===200?"success":"denied";
@@ -316,7 +336,7 @@ function nav(){
     '<button class="tab'+(PAGE===k&&PICK==null?" on":"")+'" data-p="'+k+'">'+l
     +' <b>'+n+'</b>'+(k==="cards"&&nD?' <span class="pill bad">'+nD+' denied</span>':'')+'</button>').join("");
   document.querySelectorAll("#nav .tab").forEach(t=>t.onclick=()=>{
-    PAGE=t.dataset.p; PICK=null; OPEN=null; render();
+    PAGE=t.dataset.p; PICK=null; OPEN=null; GALLERY_ADDR=null; render();
   });
 }
 
@@ -343,6 +363,8 @@ function cardsView(){
   const cards=ids.map(w=>{
     const mine=A.filter(a=>a.wallet===w), s=stats(mine);
     const myC=cardsOf(w);
+    // Where this wallet's cards can be opened as a gallery (view B).
+    const wAddr=wmeta(w).addr;
     const okPct=s.n?100*s.acc/s.n:0, denPct=s.n?100-s.acc/s.n*100:0;
     const last=mine.length?mine[mine.length-1].at:null;
     const tf=s.tooFast===0?'<span class="pill zero">too_fast 0</span>'
@@ -375,36 +397,79 @@ function cardsView(){
       +'<span class="pill'+(myC.length?' draw':'')+'">cards '+myC.length+'</span>'
       +lp+tf+'</div>'
       +(mini?'<div class="minicards">'+mini+'</div>':'')
-      +'<div class="wfoot"><span>'+ago(last)+'</span><span class="dim">view →</span></div>'
+      +'<div class="wfoot"><span>'+ago(last)+'</span>'
+      +(myC.length&&wAddr?'<span class="dim galjump" data-gal="'+esc(wAddr)+'">cards →</span>':'<span class="dim">view →</span>')
+      +'</div>'
       +'</div>';
   }).join("");
-  // Retired-round wallets, rendered after the live ones so a pull that survives
-  // rotation stays visible. No ETA/used/left: those are live-run fields.
-  const hcards=hist.map(h=>{
-    const myC=cardsOfAddr(h.addr);
-    const mini=myC.slice(0,3).map(c=>
-      '<div class="minicard">'+(c.image?'<img src="'+esc(c.image)+'" loading="lazy" alt="">':'')
-      +'<span class="t-'+esc(c.tier||"empty")+'">'+esc(c.name||c.tier||"card")+'</span></div>').join("")
-      +(myC.length>3?'<div class="minicard"><span class="dim">+'+(myC.length-3)+' more</span></div>':"");
-    return '<div class="wcard retired">'
-      +'<div class="top"><span class="wname">'+esc(h.label)+'</span>'
-      +'<span class="wround">'+esc(h.round||'')+'</span>'
-      +'<span class="waddr">'+esc(h.addr)+'</span></div>'
-      +'<div class="webar"><span class="pill">retired</span>'
-      +'<span class="pill draw">cards '+myC.length+'</span></div>'
-      +(mini?'<div class="minicards">'+mini+'</div>':'')
-      +'<div class="wfoot"><span class="dim">history</span></div>'
-      +'</div>';
-  }).join("");
-  $("#view").innerHTML=kpis+'<div class="wgrid">'+cards+hcards+'</div>';
+  // Retired-round wallets: a COMPACT strip, not full cards. As full cards they
+  // read as broken live wallets (two rows named "Z19", no ETA) and muddied the
+  // live view (Cil 2026-10-05). One line each: label, round, card count, value.
+  const hstrip=hist.length?('<div class="histbox"><div class="histhead">'
+    +'<span>Retired rounds</span><span class="dim">pull history — one row per wallet address</span></div>'
+    +hist.map(h=>{
+      const myC=cardsOfAddr(h.addr);
+      const val=myC.reduce((s,c)=>s+(c.valueUsd||0),0);
+      return '<div class="histrow" data-addr="'+esc(h.addr)+'">'
+        +'<span class="hlabel">'+esc(h.label)+'</span>'
+        +'<span class="wround">'+esc(h.round||'')+'</span>'
+        +'<span class="haddr mono">'+esc(h.addr)+'</span>'
+        +'<span class="hspacer"></span>'
+        +'<span class="pill draw">cards '+myC.length+'</span>'
+        +'<span class="pill">'+money(val)+'</span>'
+        +'</div>';
+    }).join("")+'</div>'):'';
+  $("#view").innerHTML=kpis+'<div class="wgrid">'+cards+'</div>'+hstrip;
   document.querySelectorAll(".wcard[data-w]").forEach(c=>c.onclick=()=>{
     PICK=+c.dataset.w; OPEN=null; SUB="denials"; render();
+  });
+  // The "cards →" affordance jumps straight to the wallet's gallery.
+  document.querySelectorAll(".galjump[data-gal]").forEach(s=>s.onclick=e=>{
+    e.stopPropagation(); GALLERY_ADDR=s.dataset.gal; PAGE="cards"; PICK=null;
+    CSORT=["day",-1]; render();
+  });
+  // A retired row opens its address's cards in the gallery (view B).
+  document.querySelectorAll(".histrow[data-addr]").forEach(r=>r.onclick=()=>{
+    GALLERY_ADDR=r.dataset.addr; TAB="cards"; CSORT=["day",-1]; render();
   });
 }
 
 /* ---------- view: all cards ---------- */
 function cardsPage(){
   let cs=(DATA.cards||[]).slice();
+  // Gallery mode: one wallet's pulls, image-first. Entered from a wallet card or
+  // a retired row; GALLERY_ADDR is the wallet ADDRESS (survives rotation).
+  if(GALLERY_ADDR!=null){
+    const mine=cs.filter(c=>c.addr===GALLERY_ADDR);
+    const gv=mine.reduce((s,c)=>s+(c.valueUsd||0),0);
+    const glab=(mine[0]&&(mine[0].wlabel||mine[0].wallet))||GALLERY_ADDR;
+    const rounds=[...new Set(mine.map(c=>c.round).filter(Boolean))].sort();
+    glab||0;
+    $("#title").textContent="Card gallery";
+    $("#hdr").textContent=glab+" · "+mine.length+" card(s) · "+money(gv);
+    const grid=mine.length?mine.map((c,i)=>
+      '<div class="ccard" data-gi="'+i+'">'+(c.image?'<img src="'+esc(c.image)+'" loading="lazy" alt="">':'')
+      +'<div class="cbody"><div class="cname">'+esc(c.name||"—")+'</div>'
+      +'<div class="wpills"><span class="badge '+(STCLASS[c.status]||"")+'">'+esc(c.status)+'</span>'
+      +'<span class="pill t-'+esc(c.tier||"empty")+'">'+esc(c.tier||"—")+'</span>'
+      +'<span class="pill draw">'+money(c.valueUsd)+'</span>'
+      +(c.round?'<span class="pill">'+esc(c.round)+'</span>':'')
+      +'</div></div></div>').join("")
+      :'<div class="empty">no cards pulled by this wallet</div>';
+    $("#view").innerHTML=
+      '<div class="galbar"><button class="back" id="galback">← all cards</button>'
+      +'<span class="nm" style="font-weight:700">'+esc(glab)+'</span>'
+      +'<span class="galaddr">'+esc(GALLERY_ADDR)+'</span>'
+      +(rounds.length?'<span class="wround">'+esc(rounds.join(" · "))+'</span>':'')
+      +'<span class="hspacer"></span>'
+      +'<span class="pill draw">cards '+mine.length+'</span>'
+      +'<span class="pill">'+money(gv)+'</span></div>'
+      +'<div class="cgrid">'+grid+'</div>';
+    $("#galback").onclick=()=>{GALLERY_ADDR=null;render();};
+    document.querySelectorAll(".ccard[data-gi]").forEach(c=>
+      c.onclick=()=>cardDetail(mine[+c.dataset.gi]));
+    return;
+  }
   const byT={}; cs.forEach(c=>{const k=c.tier||"—"; byT[k]=(byT[k]||0)+1;});
   const byS={}; cs.forEach(c=>{byS[c.status]=(byS[c.status]||0)+1;});
   const [k,dir]=CSORT;
@@ -648,6 +713,20 @@ $("#scrim").onclick=closeDetail;
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeDetail();});
 
 /* ---------- chrome ---------- */
+// Total haul: the run's card value, pinned in the header so the payout is
+// visible on every tab without opening Cards (Cil 2026-10-05).
+function haul(){
+  const el=$("#haul"); if(!el||!DATA) return;
+  const cs=DATA.cards||[];
+  const v=cs.reduce((s,c)=>s+(c.valueUsd||0),0);
+  const live=new Set(Object.values(DATA.wallets||{}).map(m=>m.addr).filter(Boolean));
+  const liveV=cs.filter(c=>live.has(c.addr)).reduce((s,c)=>s+(c.valueUsd||0),0);
+  const nLive=cs.filter(c=>live.has(c.addr)).length;
+  el.innerHTML='<span class="hlabel">haul</span>'
+    +'<b title="value held by the live round\u2019s wallets">'+money(liveV)+'</b>'
+    +'<span class="dim">live</span>'
+    +'<span class="dim">· '+money(v)+' all-time ('+cs.length+' card'+(cs.length===1?'':'s')+')</span>';
+}
 function render(){
   if(!DATA) return;
   document.querySelectorAll("#wins .tab").forEach(t=>t.classList.toggle("on",t.dataset.w===WIN));
@@ -655,6 +734,7 @@ function render(){
   // On the Cards tab it would be a control that does nothing -- hide it.
   const wf=$("#wins");
   if(wf) wf.style.display=(PAGE==="cards"&&PICK==null)?"none":"";
+  haul();
   nav();
   if(PICK!=null) walletView();
   else if(PAGE==="cards") cardsPage();
