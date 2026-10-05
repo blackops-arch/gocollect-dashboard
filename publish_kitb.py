@@ -47,6 +47,23 @@ ARCHIVE_DIR = "/home/bluey/gocollect-rotation-z/engine"
 ENGINE_WALLETS = "/home/bluey/gocollect-rotation-z/wallets.json"
 
 
+def _wallet_round(label: str):
+    """Round label for a live wallet, from the engine map's ledgerName.
+
+    The engine records every live wallet as ledgerName "W-<LABEL>-R<N>", so the
+    round comes straight from the record. None (never a guess) if the wallet is
+    unknown or the map is unreadable.
+    """
+    try:
+        with open(ENGINE_WALLETS) as fh:
+            W = json.load(fh)
+    except (OSError, ValueError):
+        return None
+    e = (W.get("wallets") or {}).get(label) or {}
+    m = re.search(r"-R(\d+)$", str(e.get("ledgerName") or ""))
+    return "R%s" % m.group(1) if m else None
+
+
 def _round_by_addr(addr: str):
     """Round label for a wallet address, from the engine's live + retired maps."""
     if not addr:
@@ -910,7 +927,13 @@ def build() -> dict:
                                   "limit": DAILY_LIMIT,
                                   "used": _run_used(k),
                                   "loc": _spawn_map().get(k),
-                                  "device": _device_kind(k)}
+                                  "device": _device_kind(k),
+                                  # Which round this live wallet belongs to. The
+                                  # wallet map's ledgerName (W-Z16-R7) is the
+                                  # engine's own record, so the tab can show it
+                                  # instead of leaving the reader to guess from
+                                  # the label alone (Cil 2026-10-05).
+                                  "round": _wallet_round(k)}
                           for k, v in idx.items()},
             "attempts": rows, "cards": cards,
             "opens_left": {str(idx[k]): v for k, v in opens_left().items() if k in idx}}

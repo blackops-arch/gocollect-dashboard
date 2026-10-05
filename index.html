@@ -58,6 +58,7 @@ color:var(--dim);cursor:pointer;font:inherit;font-size:13px;line-height:1.4;tran
  background:linear-gradient(90deg,var(--pk-yellow),#fff);-webkit-background-clip:text;
  background-clip:text;color:transparent}
 .waddr{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--dim)}
+.wround{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--acc);border:1px solid var(--line);border-radius:5px;padding:1px 5px;opacity:.85}
 .mono{font-family:ui-monospace,Menlo,monospace;font-size:11px;overflow-wrap:anywhere}
 .wbig{font-size:26px;font-weight:800;line-height:1;font-family:ui-monospace,Menlo,monospace;color:#fff}
 .wbig span{font-size:11px;font-weight:500;color:var(--dim);font-family:inherit;margin-left:4px}
@@ -335,6 +336,7 @@ function cardsView(){
       :'';
     return '<div class="wcard" data-w="'+w+'">'
       +'<div class="top"><span class="wname">'+glabel(w)+'</span>'
+      +'<span class="wround">'+esc(wmeta(w).round||'')+'</span>'
       +'<span class="waddr">'+esc(addr(w))+'</span></div>'
       +'<div class="wbig">'+wmeta(w).used+'<small>/'+wmeta(w).limit+'</small><span>crates opened</span></div>'
       +'<div class="wbar"><i style="width:'+(wmeta(w).limit?Math.min(100,100*wmeta(w).used/wmeta(w).limit):0)+'%"></i></div>'
