@@ -280,37 +280,62 @@ def cards_from_states() -> list:
     return out
 
 
+def _round_addr_map(rnd: int) -> dict:
+    """label -> address for one round, from that round's rotation state.
+
+    A round owns its own label->address map, which is the only correct source
+    for an archived card: Z20 in r6/ is R6's wallet while Z20 in the live map is
+    R7's, so borrowing the live address would attribute the card to the wrong
+    wallet (caught 2026-10-05).
+    """
+    try:
+        with open(os.path.join(ROTATIONS_DIR, "Z-R%d.json" % rnd)) as fh:
+            d = json.load(fh)
+    except (OSError, ValueError):
+        return {}
+    out = {}
+    for lab, v in (d.get("new") or {}).items():
+        a = v.get("address") if isinstance(v, dict) else v
+        if a:
+            out[lab] = a
+    return out
+
+
 def _cards_from_archive(live_wkey: dict) -> list:
     """Cards still sitting in an archived round dir (engine/r<N>/state_Z*.json).
 
     A rotation moves each live state file into its round directory, so a card won
-    in a round whose labels were later reused exists only here. Each archived
-    label is joined to the wallet key of the SAME label when it is still live;
-    otherwise the card keeps its label and the page falls back to that label's
-    own row. Deduped by (name, wallet) so overlapping archives cannot double it.
+    in a round whose labels were later reused exists only here. The round comes
+    from the DIRECTORY name (r6/ -> Z-R6.json) and the address from that round's
+    own map, so an archived card is never attributed to the live wallet that now
+    wears its label. Deduped by (name, address).
     """
     seen, out = set(), []
-    for enc_root in (ARCHIVE_DIR,):
-        try:
-            rounds = sorted(os.listdir(enc_root))
-        except OSError:
+    try:
+        rounds = sorted(os.listdir(ARCHIVE_DIR))
+    except OSError:
+        return out
+    for rd in rounds:
+        mrd = re.match(r"^r(\d+)$", rd)
+        if not mrd:
             continue
-        for rd in rounds:
-            rd_dir = os.path.join(enc_root, rd)
-            if not os.path.isdir(rd_dir):
+        rd_dir = os.path.join(ARCHIVE_DIR, rd)
+        if not os.path.isdir(rd_dir):
+            continue
+        amap = _round_addr_map(int(mrd.group(1)))
+        for fn in sorted(os.listdir(rd_dir)):
+            m = re.match(r"^state_(Z\d\d)\.json$", fn)
+            if not m:
                 continue
-            for fn in sorted(os.listdir(rd_dir)):
-                m = re.match(r"^state_(Z\d\d)\.json$", fn)
-                if not m:
+            label = m.group(1)
+            addr = amap.get(label)
+            for c in _cards_in(os.path.join(rd_dir, fn), label, BATCH_NAME,
+                               addr, wkey=None):
+                key = (str(c.get("name") or ""), str(c.get("addr") or ""))
+                if key in seen:
                     continue
-                label = m.group(1)
-                for c in _cards_in(os.path.join(rd_dir, fn), label, BATCH_NAME,
-                                   None, wkey=live_wkey.get(label)):
-                    key = (str(c.get("name") or ""), str(c.get("wallet") or ""))
-                    if key in seen:
-                        continue
-                    seen.add(key)
-                    out.append(c)
+                seen.add(key)
+                out.append(c)
     return out
 
 
@@ -447,7 +472,7 @@ def _cards_in(path: str, label: str, batch: str, addr=None, wkey=None) -> list:
             # win time; older prizes predate that field, so fall back to the
             # ledger win record keyed by the same card name. Decorative only:
             # a missing stamp must never drop the card.
-            "round": _round_of(p.get("at") or w.get("at")),
+            "round": _round_of(p.get("at") or w.get("at"), addr),
             "image": None,
             "mint": p.get("crate"),
             "prizeId": p.get("prizeId"),
