@@ -64,6 +64,25 @@ def _wallet_round(label: str):
     return "R%s" % m.group(1) if m else None
 
 
+def _engine_wallet_list() -> list:
+    """The live wallets as the ENGINE has them, in the kit's wallets.json shape.
+
+    Returns [{label, address, ...}] or [] if the engine map is unreadable, so
+    the caller can fall back to the kit's own (possibly stale) copy.
+    """
+    try:
+        with open(ENGINE_WALLETS) as f:
+            W = json.load(f)
+    except (OSError, ValueError):
+        return []
+    out = []
+    for label, e in sorted((W.get("wallets") or {}).items()):
+        if e.get("address"):
+            out.append({"label": label, "address": e["address"],
+                        "ledgerName": e.get("ledgerName")})
+    return out
+
+
 def _round_by_addr(addr: str):
     """Round label for a wallet address, from the engine's live + retired maps."""
     if not addr:
@@ -264,11 +283,21 @@ def cards_from_states() -> list:
     label alone would hand a batch-1 card a batch-2 address.
     """
     out = []
-    # batch 2: live keys dir labels, addresses derived from keys/
-    try:
-        b2 = json.load(open(os.path.join(KITB, "wallets.json")))
-    except (OSError, ValueError):
-        b2 = []
+    # Batch 2: live keys dir labels, addresses derived from keys/.
+    #
+    # The ENGINE's map is the authority, not the kit's wallets.json: the engine
+    # rewrites its own map on every rotation but never pushes the address roster
+    # into the kit, so KITB/wallets.json stays on the previous round. At R7 it
+    # still held R6's addresses, which handed state_Z19.json the RETIRED R6
+    # address (E7yeEXLt...) instead of the live one (2FALjPMG...) and made the
+    # Mr.2 Bon Kurei card resolve to round R6 on the dashboard even though the
+    # wallet that pulled it is W-Z19-R7 (found by Cil 2026-10-05).
+    b2 = _engine_wallet_list()
+    if not b2:
+        try:
+            b2 = json.load(open(os.path.join(KITB, "wallets.json")))
+        except (OSError, ValueError):
+            b2 = []
     b2_map = _addr_map(b2)
     live_keys = _key_labels()
     live_order = sorted(live_keys)
