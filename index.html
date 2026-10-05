@@ -104,6 +104,15 @@ border-radius:8px;padding:3px 7px;font-size:10.5px;max-width:100%}
  border-radius:11px;padding:10px 12px}
 .kpi .v{font-size:20px;font-weight:800;line-height:1.2;font-family:ui-monospace,Menlo,monospace;color:#fff}
 .kpi .l{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.6px;margin-top:2px}
+.mpanel{margin:0 0 14px;border:1px solid #1d4a48;border-radius:13px;overflow:hidden;
+ background:linear-gradient(180deg,rgba(56,232,208,.05),#12161d)}
+.mhead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:9px 13px;
+ border-bottom:1px solid var(--line);font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim)}
+.mgrid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));padding:12px 13px 6px}
+.mcell .mv{font-size:19px;font-weight:800;font-family:ui-monospace,Menlo,monospace;color:#fff;line-height:1.15}
+.mcell .mv small{font-size:10px;font-weight:500;color:var(--dim);margin-left:4px;font-family:inherit}
+.mcell .ml{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+.mnote{padding:6px 13px 11px;font-size:10.5px}
 .card{background:linear-gradient(180deg,var(--card),#12161d);border:1px solid var(--line);
  border-radius:12px;overflow:hidden}
 .tscroll{max-height:62vh;overflow:auto}
@@ -313,6 +322,35 @@ function nav(){
 }
 
 /* ---------- view: wallet cards ---------- */
+// Money picture: what the run produces, per crate and per 100 crates, from the
+// page's own attempts + cards. No cost line (Cil 2026-10-05: production + value
+// only) and no balances: everything here is derived, nothing new is fetched.
+//
+// Basis is ALL-TIME, matching the `cards`/value figures it divides. Passing the
+// windowed attempt count here mixed a 24h denominator with an all-time
+// numerator and inflated every rate ~2.7x (found 2026-10-05).
+function moneyPanel(val, nCards, nAttempts){
+  if(!nAttempts) return '';
+  const perCrate=val/nAttempts;
+  const per100=100*nCards/nAttempts;
+  const per1k=1000*nCards/nAttempts;
+  const avg=nCards?val/nCards:0;
+  const cell=(v,l,sub,tone)=>'<div class="mcell"><div class="mv'+(tone?' t-'+tone:'')+'">'+v
+    +(sub?'<small>'+sub+'</small>':'')+'</div><div class="ml">'+l+'</div></div>';
+  return '<div class="mpanel">'
+    +'<div class="mhead"><span>money picture</span>'
+    +'<span class="dim">what the run produces — derived from the rows above</span></div>'
+    +'<div class="mgrid">'
+    +cell(money(val),'value won','all-time')
+    +cell(money(perCrate),'value / crate')
+    +cell(per100.toFixed(2),'cards / 100 crates')
+    +cell(per1k.toFixed(1),'cards / 1000 crates')
+    +cell(money(avg),'avg card value')
+    +'</div>'
+    +'<div class="mnote dim">Odds floor gate 0.20%/crate = 0.20 cards / 100 crates. '
+    +'Rate below that means the odds have drifted off policy.</div>'
+    +'</div>';
+}
 function cardsView(){
   const A=winRows(), ids=walletIds(), t=stats(A);
   $("#title").textContent="GoCollect fleet ledger";
@@ -320,6 +358,8 @@ function cardsView(){
     (A.length?dayof(A[0].at)+" → "+dayof(A[A.length-1].at):"no attempts");
   const tfCol=t.tooFast===0?"var(--ok)":"var(--warn)";
   const nCards=(DATA.cards||[]).length, nVal=(DATA.cards||[]).reduce((s,c)=>s+(c.valueUsd||0),0);
+  // All-time attempt count: the denominator for the money panel (see moneyPanel).
+  const nAll=(DATA.attempts||[]).length;
   const nLeft=totalLeft(), nLeftW=Object.keys((DATA&&DATA.opens_left)||{}).length;
   const leftCol=nLeft===0?"var(--dim)":"var(--ok)";
   const kpis='<div class="kpis">'
@@ -330,7 +370,7 @@ function cardsView(){
     +'<div class="kpi"><div class="v">'+nCards+'</div><div class="l">cards</div></div>'
     +'<div class="kpi"><div class="v">'+money(nVal)+'</div><div class="l">cards value</div></div>'
     +'<div class="kpi"><div class="v" style="color:'+tfCol+'">'+t.tooFast+'</div><div class="l">too_fast</div></div>'
-    +'</div>';
+    +'</div>'+moneyPanel(nVal, nCards, nAll);
   const cards=ids.map(w=>{
     const mine=A.filter(a=>a.wallet===w), s=stats(mine);
     const myC=cardsOf(w);
